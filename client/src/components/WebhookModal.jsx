@@ -1,10 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Radio, Copy, Check, Send, X } from 'lucide-react';
 
-export default function WebhookModal({ isOpen, onClose, onTriggered }) {
+export default function WebhookModal({
+  isOpen,
+  onClose,
+  onTriggered,
+  defaultPath = 'order-events',
+  onPathChange,
+  currentWorkflow
+}) {
   if (!isOpen) return null;
 
-  const [webhookPath, setWebhookPath] = useState('order-events');
+  const [webhookPath, setWebhookPath] = useState(defaultPath);
+
+  useEffect(() => {
+    if (defaultPath) setWebhookPath(defaultPath);
+  }, [defaultPath, isOpen]);
+
+  const handlePathChange = (val) => {
+    const cleaned = val.replace(/^\/+/, '');
+    setWebhookPath(cleaned);
+    onPathChange?.(cleaned);
+  };
   const [payloadStr, setPayloadStr] = useState(JSON.stringify({
     orderId: `ORD-${Math.floor(Math.random() * 90000 + 10000)}`,
     customer: 'Tony Stark',
@@ -39,10 +56,14 @@ export default function WebhookModal({ isOpen, onClose, onTriggered }) {
         return;
       }
 
+      const bodyPayload = currentWorkflow
+        ? { payload: parsed, workflow: currentWorkflow }
+        : parsed;
+
       const res = await fetch(`/api/webhooks/${webhookPath}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed)
+        body: JSON.stringify(bodyPayload)
       });
       const data = await res.json();
       setIsSending(false);
@@ -118,7 +139,8 @@ export default function WebhookModal({ isOpen, onClose, onTriggered }) {
               type="text"
               className="apple-input monospace"
               value={webhookPath}
-              onChange={(e) => setWebhookPath(e.target.value)}
+              onChange={(e) => handlePathChange(e.target.value)}
+              placeholder="e.g. order-events, crypto-ticks"
               style={{ fontWeight: 600 }}
             />
           </div>

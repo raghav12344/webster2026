@@ -232,15 +232,19 @@ app.post('/api/webhooks/:webhookId', async (req, res) => {
 
   console.log(`📥 [Webhook Gateway] Received webhook for '${webhookId}':`, incomingPayload);
 
-  // Find workflow matching this webhook path or default to first preset
+  // Find workflow matching this webhook path or custom supplied workflow
   let matchedWorkflow = null;
-  for (const wf of workflows.values()) {
-    const hasMatchingNode = wf.nodes.some(
-      n => n.data?.webhookPath === webhookId || n.data?.eventType === webhookId
-    );
-    if (hasMatchingNode) {
-      matchedWorkflow = wf;
-      break;
+  if (incomingPayload?.workflow?.nodes?.length > 0) {
+    matchedWorkflow = incomingPayload.workflow;
+  } else {
+    for (const wf of workflows.values()) {
+      const hasMatchingNode = wf.nodes?.some(
+        n => n.data?.webhookPath === webhookId || n.data?.eventType === webhookId
+      );
+      if (hasMatchingNode) {
+        matchedWorkflow = wf;
+        break;
+      }
     }
   }
 
@@ -248,12 +252,14 @@ app.post('/api/webhooks/:webhookId', async (req, res) => {
     matchedWorkflow = presetWorkflows[0];
   }
 
+  const payloadData = incomingPayload?.workflow ? (incomingPayload.payload || {}) : incomingPayload;
+
   try {
     const execution = await coordinator.startExecution(matchedWorkflow, {
       source: 'external_webhook',
       webhookId,
       receivedAt: new Date().toISOString(),
-      payload: incomingPayload
+      payload: payloadData
     });
 
     res.json({

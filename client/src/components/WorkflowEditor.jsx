@@ -29,7 +29,8 @@ import {
   Sliders,
   CheckCircle2,
   Check,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 
 import {
@@ -838,13 +839,75 @@ export default function WorkflowEditor({
                 )}
 
                 {/* Trigger Parameters */}
-                {(selectedNode.type === 'webhookTrigger' || selectedNode.type === 'manualTrigger') && (
+                {selectedNode.type === 'webhookTrigger' && (
+                  <>
+                    <div className="apple-field-group">
+                      <label className="apple-field-label">Webhook Ingress Path</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--apple-text-secondary)', fontFamily: 'monospace' }}>
+                          /api/webhooks/
+                        </span>
+                        <input
+                          type="text"
+                          className="apple-input monospace"
+                          value={selectedNode.data.webhookPath || ''}
+                          onChange={(e) => handleUpdateNode('webhookPath', e.target.value.replace(/^\/+/, ''))}
+                          placeholder="e.g. market-ticks, security-alerts"
+                        />
+                      </div>
+                      <span style={{ fontSize: '10.5px', color: 'var(--apple-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                        Endpoint: <code>/api/webhooks/{selectedNode.data.webhookPath || 'path'}</code>
+                      </span>
+                    </div>
+
+                    <div className="apple-field-group">
+                      <label className="apple-field-label">Event Identifier</label>
+                      <input
+                        type="text"
+                        className="apple-input monospace"
+                        value={selectedNode.data.eventType || 'event.incoming'}
+                        onChange={(e) => handleUpdateNode('eventType', e.target.value)}
+                        placeholder="e.g. order.created, crypto.tick"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === 'cronTrigger' && (
+                  <>
+                    <div className="apple-field-group">
+                      <label className="apple-field-label">Cron Schedule Expression</label>
+                      <input
+                        type="text"
+                        className="apple-input monospace"
+                        value={selectedNode.data.cronExpression || '*/30 * * * * *'}
+                        onChange={(e) => handleUpdateNode('cronExpression', e.target.value)}
+                        placeholder="*/20 * * * * *"
+                      />
+                      <span style={{ fontSize: '10.5px', color: 'var(--apple-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                        Standard 5/6 field cron (e.g. <code>*/20 * * * * *</code> for every 20s)
+                      </span>
+                    </div>
+
+                    <div className="apple-field-group">
+                      <label className="apple-field-label">Event Name</label>
+                      <input
+                        type="text"
+                        className="apple-input monospace"
+                        value={selectedNode.data.eventType || 'system.cron'}
+                        onChange={(e) => handleUpdateNode('eventType', e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {selectedNode.type === 'manualTrigger' && (
                   <div className="apple-field-group">
                     <label className="apple-field-label">Event Name</label>
                     <input
                       type="text"
                       className="apple-input monospace"
-                      value={selectedNode.data.eventType || 'event.incoming'}
+                      value={selectedNode.data.eventType || 'event.manual'}
                       onChange={(e) => handleUpdateNode('eventType', e.target.value)}
                     />
                   </div>
@@ -1004,6 +1067,18 @@ export default function WorkflowEditor({
       <WebhookModal
         isOpen={showWebhookModal}
         onClose={() => setShowWebhookModal(false)}
+        defaultPath={nodes.find((n) => n.type === 'webhookTrigger')?.data?.webhookPath || 'order-events'}
+        currentWorkflow={{ id: selectedPreset?.id, name: selectedPreset?.name, nodes, edges }}
+        onPathChange={(newPath) => {
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.type === 'webhookTrigger') {
+                return { ...node, data: { ...node.data, webhookPath: newPath } };
+              }
+              return node;
+            })
+          );
+        }}
         onTriggered={(execId) => {
           setActiveExecutionId(execId);
           listenToSSEStream(execId);
