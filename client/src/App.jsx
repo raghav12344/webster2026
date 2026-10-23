@@ -112,6 +112,12 @@ export default function App() {
   const loadWorkflow = (wf) => {
     setSelectedPresetId(wf.id);
     setSelectedNode(null);
+    setIsRunning(false); // Reset execution lock on preset switch
+    setCycleAlert(null); // Clear any past alerts
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
     const resetNodes = wf.nodes.map(n => ({
       ...n,
       data: { ...n.data, status: 'IDLE', error: null, output: null }
@@ -222,6 +228,10 @@ export default function App() {
   // Trigger Execution
   const triggerRun = async () => {
     try {
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
       setIsRunning(true);
       setCycleAlert(null);
 
@@ -341,7 +351,10 @@ export default function App() {
             `🏁 [COMPLETED] ${payload.summary}`,
             `==================================================================`
           ]);
-          sse.close();
+          if (sseRef.current) {
+            sseRef.current.close();
+            sseRef.current = null;
+          }
         }
       } catch (err) {
         console.error('SSE JSON error:', err);
@@ -350,7 +363,10 @@ export default function App() {
 
     sse.onerror = () => {
       setIsRunning(false);
-      sse.close();
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
     };
   };
 

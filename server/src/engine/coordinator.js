@@ -219,6 +219,24 @@ class DAGCoordinator {
       logs
     });
 
+    // Check if entire execution has halted or has no remaining active/runnable nodes
+    const hasActiveNodes = Object.values(exec.nodeStates).some(
+      ns => ns.status === TaskStatus.RUNNING || ns.status === TaskStatus.PENDING || ns.status === TaskStatus.RETRYING
+    );
+
+    if (!hasActiveNodes) {
+      exec.endTime = Date.now();
+      const durationMs = exec.endTime - exec.startTime;
+      await this.broadcastEvent(executionId, {
+        type: 'EXECUTION_COMPLETED',
+        executionId,
+        status: ExecutionStatus.PARTIALLY_FAILED,
+        durationMs,
+        summary: `Pipeline halted: Task "${nodeId}" routed to Dead-Letter Queue (DLQ). Downstream branches safely protected.`
+      });
+      console.log(`🏁 [Coordinator] Execution ${executionId} TERMINATED (DLQ halt) in ${durationMs}ms.`);
+    }
+
     await broker.set(`execution:${executionId}`, exec);
     this.activeExecutions.set(executionId, exec);
     console.warn(`💀 [DLQ] Node ${nodeId} routed to Dead-Letter Queue: ${errorMsg}`);

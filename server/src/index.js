@@ -124,7 +124,9 @@ app.post('/api/workflows/validate', (req, res) => {
 // ==========================================
 app.post('/api/workflows/:id/run', async (req, res) => {
   try {
-    const workflow = workflows.get(req.params.id) || req.body.workflow;
+    const workflow = (req.body.workflow && req.body.workflow.nodes?.length > 0)
+      ? req.body.workflow
+      : workflows.get(req.params.id);
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
