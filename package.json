@@ -4,13 +4,16 @@
   "description": "ChronosFlow - Distributed DAG Workflow & Automation Engine for PS-04 The Dormammu Loop",
   "type": "module",
   "scripts": {
+    "start": "node server/src/index.js",
+    "build": "npm --prefix client run build",
+    "install:all": "npm install && npm --prefix client install",
     "test:algo": "node shared/algorithms.test.js",
     "start:server": "node server/src/index.js",
     "start:worker": "node worker/src/index.js",
     "dev:backend": "concurrently \"node server/src/index.js\" \"node worker/src/index.js\"",
     "dev:client": "cd client && npm run dev",
     "dev": "concurrently -n \"SERVER,WORKER,CLIENT\" -c \"blue,green,magenta\" \"node server/src/index.js\" \"node worker/src/index.js\" \"cd client && npm run dev\"",
-    "build:client": "cd client && npm run build"
+    "build:client": "npm --prefix client run build"
   },
   "dependencies": {
     "express": "^4.21.2",

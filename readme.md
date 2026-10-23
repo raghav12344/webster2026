@@ -2,7 +2,7 @@
 > **PS-04: THE DORMAMMU LOOP**  
 > **CodeSangam 2026 // MNNIT Allahabad**  
 > **Team:** FLCN (Team ID: 272)  
-> **Lead:** Raghav Gupta (20243226 CSE)
+> **Lead Developer:** Raghav Gupta (20243226 CSE)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
@@ -15,7 +15,7 @@
 ## 📖 Executive Summary
 In complex software architectures, asynchronous computations often become chaotic "temporal loops"—unobservable background scripts, cascading microservice failures, and infinite cycle deadlocks (*The Dormammu Loop*).
 
-**ChronosFlow** is a distributed, event-driven Directed Acyclic Graph (DAG) orchestration engine. It enables developers and operations teams to visually construct distributed workflows, enforce mathematical acyclicity before task execution, ingest triggers in $<15\text{ms}$ into durable AMQP queues, coordinate distributed worker pools using Kahn's topological sort, and recover self-healing pipelines with exponential backoff and Dead-Letter Queue (DLQ) vaults.
+**ChronosFlow** is a distributed, event-driven Directed Acyclic Graph (DAG) orchestration engine. It enables developers and operations teams to visually construct distributed workflows, enforce mathematical acyclicity before task execution, ingest triggers in under 15ms into durable AMQP queues, coordinate distributed worker pools using Kahn's topological sort, and recover self-healing pipelines with exponential backoff and Dead-Letter Queue (DLQ) vaults.
 
 Wrapped in an **Apple-inspired design philosophy**, ChronosFlow combines functional elegance with production-grade distributed systems engineering.
 
@@ -26,53 +26,53 @@ Wrapped in an **Apple-inspired design philosophy**, ChronosFlow combines functio
 ```mermaid
 flowchart TD
     subgraph Tier1["Tier 1: Client Application (Apple-Inspired UI)"]
-        UI["React Flow 12 Canvas<br/>DFS Real-Time Cycle Detection"]
-        Three["Three.js 3D DAG Hero"]
-        Console["SSE Real-Time Console"]
-        Obs["Distributed Observability & DLQ Replay"]
+        UI["React Flow 12 Canvas (DFS Cycle Detection)"]
+        Three["Three.js 3D DAG Hero Scene"]
+        Console["SSE Real-Time Console Drawer"]
+        Obs["Distributed Observability and DLQ Replay"]
     end
 
     subgraph Tier2["Tier 2: Orchestration Gateway (Express / Node.js)"]
-        Ingress["<15ms Webhook Ingress Gateway<br/>/api/webhooks/:webhookId"]
-        Kahn["Kahn's Topological Sorter<br/>Dynamic In-Degree Tracker"]
-        Cron["node-cron Background Scheduler"]
+        Ingress["Sub-15ms Webhook Ingress Gateway (/api/webhooks/:webhookId)"]
+        Kahn["Kahn Topological Sorter (Dynamic In-Degree Tracker)"]
+        Cron["Background node-cron Scheduler"]
     end
 
-    subgraph Tier3["Tier 3: Messaging & Distributed State"]
-        RabbitMQ["RabbitMQ AMQP Broker<br/>chronos.tasks | chronos.dlq | DLX"]
-        Redis["Redis Telemetry & Locks<br/>SETNX Idempotency | Pub/Sub SSE"]
+    subgraph Tier3["Tier 3: Messaging and Distributed State"]
+        RabbitMQ["RabbitMQ AMQP Broker (chronos.tasks, chronos.dlq, DLX)"]
+        Redis["Redis Telemetry and Locks (SETNX Idempotency, Pub/Sub SSE)"]
     end
 
     subgraph Tier4["Tier 4: Distributed Worker Pool"]
-        W1["Worker Process 1<br/>HTTP / Transform / Delay"]
-        W2["Worker Process 2<br/>HTTP / Transform / Delay"]
-        Retry["Exponential Backoff & Jitter<br/>Max 3 Attempts -> Route to DLQ"]
+        W1["Worker Process 1 (HTTP, Transform, Delay)"]
+        W2["Worker Process 2 (HTTP, Transform, Delay)"]
+        Retry["Exponential Backoff and Jitter (Max 3 Retries)"]
     end
 
-    UI -->|REST / Webhook Ingest| Ingress
+    UI --> Ingress
     Ingress --> Kahn
     Cron --> Kahn
-    Kahn -->|Dispatch Root Tasks| RabbitMQ
-    RabbitMQ -->|amqplib Prefetch(5)| W1
-    RabbitMQ -->|amqplib Prefetch(5)| W2
-    W1 <-->|SETNX Lock / Heartbeat| Redis
-    W2 <-->|SETNX Lock / Heartbeat| Redis
-    W1 -->|On Failure| Retry
-    Retry -->|Attempt > 3| RabbitMQ
-    W1 -->|On Complete| Kahn
-    W2 -->|On Complete| Kahn
-    Redis -->|Pub/Sub Event Bus| Console
+    Kahn --> RabbitMQ
+    RabbitMQ --> W1
+    RabbitMQ --> W2
+    W1 --- Redis
+    W2 --- Redis
+    W1 --> Retry
+    Retry --> RabbitMQ
+    W1 --> Kahn
+    W2 --> Kahn
+    Redis --> Console
 ```
 
 ### 1. Tier 1: Client Application (React & Three.js)
 - **Apple Design Language:** Default light theme with subtle warm grays, SF Pro system typography, restrained corner radii, and high-contrast dark theme toggle.
-- **Three.js Interactive 3D Hero Scene:** Studio-lit, physical materials with photons traveling between 3D nodes (Webhook $\to$ RabbitMQ $\to$ Workers $\to$ Redis $\to$ DLQ).
+- **Three.js Interactive 3D Hero Scene:** Studio-lit physical materials with glowing photons traveling between 3D nodes (Webhook → RabbitMQ → Workers → Redis → DLQ).
 - **Client-Side DFS Cycle Detector:** Analyzes topology in real time on edge connection to block invalid cyclic loops (*Dormammu Loops*) before they reach the server.
 - **Real-Time SSE Streaming Console:** Consumes execution events without polling, streaming logs, worker IDs, and durations into a collapsible terminal drawer.
 - **Contextual Node Inspector:** Inspect node configs, test single nodes in isolation, update webhook paths, and view execution outputs.
 
 ### 2. Tier 2: Orchestration API Gateway (Express / Node.js)
-- **Kahn's Deterministic Topological Sorter:** Computes exact execution stages and topological order $O(V + E)$.
+- **Kahn's Deterministic Topological Sorter:** Computes exact execution stages and topological order in O(V + E) time complexity.
 - **Dynamic In-Degree Dependency Tracker:** As upstream tasks complete, in-degrees of child nodes decrement; nodes unlock and dispatch to RabbitMQ only when all prerequisites reach 0.
 - **Sub-15ms Ingestion:** External webhooks validate and offload into AMQP queues in under 15ms.
 
@@ -92,7 +92,7 @@ flowchart TD
 
 ## 🧮 Mathematical Foundations & Algorithms
 
-### 1. Kahn's Topological Sorting ($O(V + E)$)
+### 1. Kahn's Topological Sorting (O(V + E))
 Used by the Orchestration Gateway to partition DAG nodes into parallel execution stages:
 ```
 1. Compute in-degree (number of incoming directed edges) for every node.
@@ -105,10 +105,10 @@ Used by the Orchestration Gateway to partition DAG nodes into parallel execution
 4. If topological order length != total nodes, a cycle exists.
 ```
 
-### 2. Depth-First Search Cycle Detection ($O(V + E)$)
+### 2. Depth-First Search Cycle Detection (O(V + E))
 Used in the UI to prevent closed loop creation in real time:
 - When a user draws an edge from `Source` to `Target`, DFS checks if `Source` is already reachable from `Target`.
-- If reachable, the edge is rejected and an alert toast is displayed: *"Dormammu Loop Detected: Cycle path Target $\to \dots \to$ Source."*
+- If reachable, the edge is rejected and an alert toast is displayed: *"Dormammu Loop Detected: Cycle path Target → ... → Source."*
 
 ### 3. Exponential Backoff with Full Random Jitter
 Prevents the **Thundering Herd** problem when an upstream microservice fails:
@@ -124,11 +124,11 @@ const totalDelay = exponentialDelay + jitter;
 
 | # | Preset Name | Nodes | Stages | Description |
 | :-: | :--- | :-: | :-: | :--- |
-| **01** | **The Dormammu Loop Breaker** | 4 | 4 | Core event pipeline: Webhook Ingress $\to$ 1.5s Debounce $\to$ Payload Normalizer $\to$ Payment Gateway HTTP. |
+| **01** | **The Dormammu Loop Breaker** | 4 | 4 | Core event pipeline: Webhook Ingress → 1.5s Debounce → Payload Normalizer → Payment Gateway HTTP. |
 | **02** | **Fault-Tolerant Backoff & DLQ Demo** | 3 | 3 | Simulates an unstable HTTP service (503 Gateway). Demonstrates 3 retries with jitter before quarantining into the DLQ Vault. |
 | **03** | **Diamond DAG Concurrency** | 4 | 3 | Asynchronous parallel execution: 1 Trigger splits into 2 concurrent branches running simultaneously and joining at an Aggregate node. |
 | **04** | **Cron Scheduler & Health Sentinel** | 3 | 3 | Autonomous cron-driven pipeline firing every 20s (`*/20 * * * * *`), probing sentinel endpoints and updating metrics. |
-| **05** | **Global Fintech & Order Clearing Matrix** | **14** | **8** | **Ultra-complex enterprise DAG**: Webhook Ingress $\to$ 3-Way Fan-out (Auth, Cart Normalization, Debounce) $\to$ 4 Concurrent Services (AML/KYC, Neural Risk Classifier, Avalara Tax, SKU Reservation) $\to$ 3-Parent Risk Join $\to$ Stripe Escrow Payment $\to$ Dual Post-Payment Fan-out (Crypto Invoice Signer + Logistics Queue Debounce) $\to$ FedEx/DHL Waybill Dispatch $\to$ Telemetry Audit Ledger Join. |
+| **05** | **Global Fintech & Order Clearing Matrix** | **14** | **8** | **Ultra-complex enterprise DAG**: Webhook Ingress → 3-Way Fan-out (Auth, Cart Normalization, Debounce) → 4 Concurrent Services (AML/KYC, Neural Risk Classifier, Avalara Tax, SKU Reservation) → 3-Parent Risk Join → Stripe Escrow Payment → Dual Post-Payment Fan-out (Crypto Invoice Signer + Logistics Queue Debounce) → FedEx/DHL Waybill Dispatch → Telemetry Audit Ledger Join. |
 
 ---
 
@@ -136,11 +136,11 @@ const totalDelay = exponentialDelay + jitter;
 
 ### Ingress & Webhook Endpoints
 - `POST /api/webhooks/:webhookId`  
-  Ingests arbitrary JSON payloads in $<15\text{ms}$. Matches against workflow nodes where `webhookPath == webhookId`.
+  Ingests arbitrary JSON payloads in under 15ms. Matches against workflow nodes where `webhookPath == webhookId`.
   ```bash
   curl -X POST http://localhost:5000/api/webhooks/checkout-stream \
     -H "Content-Type: application/json" \
-    -d '{"orderId":"ORD-9999","amount":15000,"currency":"USD"}'
+    -d "{\"orderId\":\"ORD-9999\",\"amount\":15000,\"currency\":\"USD\"}"
   ```
 
 ### Workflow & Execution Endpoints
@@ -148,7 +148,7 @@ const totalDelay = exponentialDelay + jitter;
 - `POST /api/presets` — Persists a new custom preset (Current Canvas or Starter).
 - `DELETE /api/presets/:id` — Deletes a user custom preset from Redis and in-memory storage.
 - `POST /api/workflows/:id/run` — Executes a workflow and returns Kahn's execution stages.
-- `GET /api/executions/:id/stream` — Real-Time Server-Sent Events (SSE) log & status stream.
+- `GET /api/executions/:id/stream` — Real-Time Server-Sent Events (SSE) log and status stream.
 - `POST /api/workflows/validate` — Validates topology, checks for cycles, and returns stages.
 
 ### Observability & DLQ Endpoints
@@ -169,14 +169,14 @@ const totalDelay = exponentialDelay + jitter;
 ChronosFlow includes a self-contained embedded broker that runs out-of-the-box without requiring external Docker services:
 
 ```bash
-# 1. Install root dependencies
-npm install
+# 1. Install dependencies for root and frontend
+npm run install:all
 
-# 2. Build the client application
-npm --prefix client run build
+# 2. Build the visual frontend
+npm run build
 
-# 3. Launch the API Gateway & Worker Engine
-node server/src/index.js
+# 3. Launch ChronosFlow Gateway & Background Worker
+npm start
 ```
 Open **[http://localhost:5000](http://localhost:5000)** in your browser!
 
@@ -189,9 +189,12 @@ To run with live enterprise AMQP queues and Redis persistence:
 # 1. Start RabbitMQ (with Web Management) and Redis containers
 docker compose up -d
 
-# 2. Build and launch ChronosFlow
-npm --prefix client run build
-node server/src/index.js
+# 2. Install dependencies & build
+npm run install:all
+npm run build
+
+# 3. Start ChronosFlow server
+npm start
 ```
 
 - **ChronosFlow Web App:** [http://localhost:5000](http://localhost:5000)
@@ -204,7 +207,7 @@ node server/src/index.js
 Run the mathematical test suite verifying Kahn's Algorithm, DFS Cycle Detection, and Exponential Backoff with Jitter:
 
 ```bash
-node shared/algorithms.test.js
+npm run test:algo
 ```
 
 Output:
@@ -214,7 +217,7 @@ Output:
 ✅ Test 2 Passed: Diamond DAG Kahn Sort Stages: [ [ 'A' ], [ 'B', 'C' ], [ 'D' ] ]
 ✅ Test 3 Passed: Dormammu Cycle Detected by DFS: [ 'A', 'B', 'C', 'A' ]
 ✅ Test 4 Passed: Real-time UI edge connection blocker verified.
-✅ Test 5 Passed: Exponential Backoff with Jitter for attempts 1-4: [ 1000, 1334, 1243, 2011 ]
+✅ Test 5 Passed: Exponential Backoff with Jitter for attempts 1-4: [ 1000, 1346, 1610, 3488 ]
 
 🎉 ALL ALGORITHMIC TESTS PASSED PERFECTLY!
 ```
