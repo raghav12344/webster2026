@@ -1,0 +1,26 @@
+{
+  "name": "chronosflow",
+  "version": "1.0.0",
+  "description": "ChronosFlow - Distributed DAG Workflow & Automation Engine for PS-04 The Dormammu Loop",
+  "type": "module",
+  "scripts": {
+    "test:algo": "node shared/algorithms.test.js",
+    "start:server": "node server/src/index.js",
+    "start:worker": "node worker/src/index.js",
+    "dev:backend": "concurrently \"node server/src/index.js\" \"node worker/src/index.js\"",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently -n \"SERVER,WORKER,CLIENT\" -c \"blue,green,magenta\" \"node server/src/index.js\" \"node worker/src/index.js\" \"cd client && npm run dev\"",
+    "build:client": "cd client && npm run build"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "amqplib": "^0.10.5",
+    "ioredis": "^5.4.2",
+    "node-cron": "^3.0.3",
+    "uuid": "^11.0.5",
+    "concurrently": "^9.1.2"
+  },
+  "keywords": ["dag", "workflow", "rabbitmq", "redis", "sse", "react-flow", "codesangam", "webster"]
+}
