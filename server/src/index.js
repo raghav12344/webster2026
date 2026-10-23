@@ -237,8 +237,10 @@ app.get('/api/executions/:id', async (req, res) => {
 // ==========================================
 // 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & RETRY
 // ==========================================
+// ==========================================
+// 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & RETRY
+// ==========================================
 app.get('/api/dlq', (req, res) => {
-  // In embedded mode, fetch from inMemory queue
   const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
   const formatted = items.map((item, idx) => {
     try {
@@ -254,6 +256,23 @@ app.get('/api/dlq', (req, res) => {
     }
   });
   res.json(formatted);
+});
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+
+app.use(express.static(clientDistPath));
+
+// Fallback all non-API routes to client index.html
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) next();
+  });
 });
 
 // ==========================================
