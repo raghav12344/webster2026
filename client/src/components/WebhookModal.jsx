@@ -63,148 +63,120 @@ export default function WebhookModal({ isOpen, onClose, onTriggered }) {
       left: 0,
       right: 0,
       bottom: 0,
-      background: 'rgba(0,0,0,0.7)',
-      backdropFilter: 'blur(8px)',
+      background: 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(16px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 100
     }}>
       <div style={{
-        background: '#0f172a',
-        border: '1px solid rgba(6, 182, 212, 0.4)',
-        borderRadius: '14px',
-        width: '600px',
+        background: 'var(--apple-card)',
+        border: '1px solid var(--apple-border)',
+        borderRadius: '16px',
+        width: '580px',
         maxWidth: '92vw',
         padding: '24px',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.85)'
+        boxShadow: 'var(--apple-shadow-sheet)'
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ padding: '8px', background: 'rgba(6, 182, 212, 0.2)', borderRadius: '8px', color: '#06b6d4' }}>
-              <Radio size={20} />
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: 'var(--apple-blue-subtle)',
+              color: 'var(--apple-blue)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Radio size={16} />
             </div>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>External Webhook Gateway</h3>
-              <p style={{ fontSize: '11px', color: '#94a3b8' }}>Ingests external payloads & dispatches to RabbitMQ in &lt;15ms</p>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--apple-text-primary)' }}>External Webhook Gateway</h3>
+              <p style={{ fontSize: '11.5px', color: 'var(--apple-text-secondary)' }}>Ingests HTTP payloads and enqueues tasks in under 15ms</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--apple-text-secondary)', cursor: 'pointer' }}
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 
-        {/* Endpoint */}
+        {/* Path field */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Webhook Target Path</label>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <span style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', color: '#64748b' }}>
+          <label className="apple-field-label">Target Ingress Path</label>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <span style={{ background: 'var(--apple-secondary-bg)', border: '1px solid var(--apple-border)', padding: '6px 10px', borderRadius: '7px', fontSize: '12px', color: 'var(--apple-text-secondary)', fontFamily: 'monospace' }}>
               /api/webhooks/
             </span>
             <input
               type="text"
+              className="apple-input monospace"
               value={webhookPath}
               onChange={(e) => setWebhookPath(e.target.value)}
-              style={{
-                flex: 1,
-                background: '#1e293b',
-                border: '1px solid rgba(255,255,255,0.15)',
-                borderRadius: '6px',
-                padding: '6px 10px',
-                color: '#38bdf8',
-                fontSize: '12px',
-                fontWeight: 600
-              }}
+              style={{ fontWeight: 600 }}
             />
           </div>
         </div>
 
-        {/* Payload Editor */}
+        {/* JSON Request Body */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>JSON Request Body</label>
+          <label className="apple-field-label">JSON Request Body</label>
           <textarea
-            rows={6}
+            rows={5}
+            className="apple-input monospace"
             value={payloadStr}
             onChange={(e) => setPayloadStr(e.target.value)}
-            style={{
-              width: '100%',
-              background: '#070b13',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '8px',
-              padding: '10px',
-              color: '#38bdf8',
-              fontFamily: 'Consolas, monospace',
-              fontSize: '11px',
-              resize: 'vertical'
-            }}
+            style={{ resize: 'vertical', fontSize: '11px', lineHeight: 1.45 }}
           />
         </div>
 
-        {/* Curl Command Snippet */}
-        <div style={{ marginBottom: '18px', background: '#0a0f1d', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '10px' }}>
+        {/* cURL Snippet Box */}
+        <div style={{
+          background: 'var(--apple-secondary-bg)',
+          border: '1px solid var(--apple-border)',
+          borderRadius: '8px',
+          padding: '10px 12px',
+          marginBottom: '20px'
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>CURL COMMAND SNIPPET</span>
+            <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--apple-text-secondary)' }}>CURL INVOCATION</span>
             <button
               onClick={copyCurl}
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: copied ? '#10b981' : '#38bdf8',
+                color: copied ? 'var(--apple-green)' : 'var(--apple-blue)',
                 fontSize: '11px',
+                fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px'
               }}
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
-              {copied ? 'Copied!' : 'Copy cURL'}
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+              <span>{copied ? 'Copied' : 'Copy cURL'}</span>
             </button>
           </div>
-          <pre style={{ fontSize: '10px', color: '#94a3b8', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+          <pre style={{ fontSize: '10.5px', color: 'var(--apple-text-primary)', overflowX: 'auto', whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'monospace' }}>
             {curlCommand}
           </pre>
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#cbd5e1',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <button className="apple-btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button
-            onClick={sendWebhook}
-            disabled={isSending}
-            style={{
-              background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)',
-              border: 'none',
-              color: '#fff',
-              padding: '8px 20px',
-              borderRadius: '6px',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Send size={14} />
-            {isSending ? 'Sending...' : 'Send Webhook Payload'}
+          <button className="apple-btn-primary" onClick={sendWebhook} disabled={isSending}>
+            <Send size={12} />
+            <span>{isSending ? 'Sending...' : 'Send Webhook Payload'}</span>
           </button>
         </div>
       </div>

@@ -16,9 +16,7 @@ app.use(express.json());
 
 // In-memory workflow registry (seed with presets)
 const workflows = new Map(presetWorkflows.map(p => [p.id, p]));
-
-// Dead-Letter Queue items registry for inspection
-const dlqItems = [];
+const customPresets = [];
 
 // ==========================================
 // 1. HEALTH & METRICS ENDPOINTS
@@ -41,7 +39,84 @@ app.get('/api/health', (req, res) => {
 // 2. WORKFLOW CRUD & PRESETS
 // ==========================================
 app.get('/api/presets', (req, res) => {
-  res.json(presetWorkflows);
+  res.json([...presetWorkflows, ...customPresets]);
+});
+
+app.post('/api/presets', async (req, res) => {
+  const { id, name, description, nodes, edges } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Preset name is required' });
+  }
+
+  const presetNodes = nodes || [];
+  const presetEdges = edges || [];
+
+  // If nodes/edges are provided, validate DAG
+  if (presetNodes.length > 0) {
+    const cycleCheck = detectCycleDFS(presetNodes, presetEdges);
+    if (cycleCheck.hasCycle) {
+      return res.status(400).json({
+        error: 'Graph contains a cycle (Dormammu Loop detected). A DAG must be strictly acyclic.',
+        cycleNodes: cycleCheck.cycleNodes
+      });
+    }
+
+    const kahn = computeKahnTopologicalSort(presetNodes, presetEdges);
+    if (!kahn.valid) {
+      return res.status(400).json({ error: kahn.error });
+    }
+  }
+
+  const presetId = id || `custom-preset-${Date.now()}`;
+  const newPreset = {
+    id: presetId,
+    name: name.trim(),
+    description: description || 'Custom user-created workflow pipeline.',
+    isCustom: true,
+    nodes: presetNodes,
+    edges: presetEdges,
+    createdAt: new Date().toISOString()
+  };
+
+  // Add to in-memory custom list & workflow map
+  customPresets.unshift(newPreset);
+  workflows.set(presetId, newPreset);
+
+  // Persist to Redis
+  try {
+    await broker.set('chronos:presets:custom', customPresets);
+  } catch (err) {
+    console.warn('Could not persist custom preset to Redis:', err.message);
+  }
+
+  // Register cron triggers if any
+  if (newPreset.nodes.some(n => n.type === 'cronTrigger')) {
+    cronScheduler.registerWorkflow(newPreset);
+  }
+
+  console.log(`✨ [Preset Manager] Created new custom preset: "${newPreset.name}" (${newPreset.id})`);
+  res.status(201).json(newPreset);
+});
+
+app.delete('/api/presets/:id', async (req, res) => {
+  const { id } = req.params;
+  const idx = customPresets.findIndex(p => p.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Custom preset not found or cannot delete default presets.' });
+  }
+
+  const [removed] = customPresets.splice(idx, 1);
+  workflows.delete(id);
+  cronScheduler.unregisterWorkflow(id);
+
+  try {
+    await broker.set('chronos:presets:custom', customPresets);
+  } catch (err) {
+    console.warn('Could not update custom presets in Redis:', err.message);
+  }
+
+  console.log(`🗑️ [Preset Manager] Deleted custom preset: "${removed.name}" (${id})`);
+  res.json({ success: true, message: `Preset "${removed.name}" removed`, id });
 });
 
 app.get('/api/workflows', (req, res) => {
@@ -341,6 +416,20 @@ app.get('*', (req, res, next) => {
 // ==========================================
 async function bootstrap() {
   await broker.initialize();
+
+  // Load custom presets from Redis if available
+  try {
+    const saved = await broker.get('chronos:presets:custom');
+    if (Array.isArray(saved) && saved.length > 0) {
+      customPresets.push(...saved);
+      for (const p of saved) {
+        workflows.set(p.id, p);
+      }
+      console.log(`📋 [Preset Manager] Restored ${saved.length} custom presets from Redis.`);
+    }
+  } catch (err) {
+    console.warn('Could not restore custom presets from Redis:', err.message);
+  }
 
   // Start worker listener in same runtime for effortless development / hackathon evaluation
   await startWorker();
