@@ -185,5 +185,167 @@ export const presetWorkflows = [
       { id: 'ec-1-2', source: 'cron-1', target: 'cron-2', animated: true },
       { id: 'ec-2-3', source: 'cron-2', target: 'cron-3', animated: true }
     ]
+  },
+  {
+    id: 'global-fintech-matrix',
+    name: '05: Global Multi-Cloud Fintech & Order Clearing Matrix',
+    description: 'Ultra-complex 14-node enterprise DAG: Webhook Ingress -> Multi-Branch Fan-Out (Auth, Cart Normalization, Debounce) -> Parallel Compliance KYC, Neural Fraud Scoring, Real-time Tax & Stock Hold -> Multi-Branch Risk Convergence -> Payment Settlement -> Parallel Invoice Generation & Logistics Debounce -> Automated Waybill -> Final Telemetry Ledger.',
+    nodes: [
+      {
+        id: 'matrix-1-ingress',
+        type: NodeTypes.WEBHOOK_TRIGGER,
+        position: { x: 60, y: 340 },
+        data: {
+          label: 'Global Ingress Gateway',
+          eventType: 'order.checkout',
+          webhookPath: 'checkout-stream'
+        }
+      },
+      {
+        id: 'matrix-2-auth',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 380, y: 120 },
+        data: {
+          label: 'JWT & Mutual-TLS Auth Probe',
+          url: 'mock://auth.global.internal/v2/verify',
+          method: 'POST'
+        }
+      },
+      {
+        id: 'matrix-2-normalize',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 380, y: 340 },
+        data: {
+          label: 'Cart Unpacker & Normalizer',
+          transformType: 'extract',
+          extractKey: 'items'
+        }
+      },
+      {
+        id: 'matrix-2-debounce',
+        type: NodeTypes.DELAY_TIMER,
+        position: { x: 380, y: 560 },
+        data: {
+          label: 'Queue Ingress Debounce',
+          delayMs: 600
+        }
+      },
+      {
+        id: 'matrix-3-kyc',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 700, y: 60 },
+        data: {
+          label: 'AML & KYC Compliance Audit',
+          url: 'mock://compliance.bank/v1/kyc-check',
+          method: 'GET'
+        }
+      },
+      {
+        id: 'matrix-3-fraud',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 700, y: 220 },
+        data: {
+          label: 'Neural Fraud & Risk Classifier',
+          transformType: 'custom',
+          expression: 'Compute vector anomaly index & fraud confidence'
+        }
+      },
+      {
+        id: 'matrix-3-tax',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 700, y: 380 },
+        data: {
+          label: 'Avalara Multi-State Tax Engine',
+          url: 'https://jsonplaceholder.typicode.com/posts/2',
+          method: 'GET'
+        }
+      },
+      {
+        id: 'matrix-3-inventory',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 700, y: 560 },
+        data: {
+          label: 'High-Concurrency Inventory Hold',
+          url: 'mock://warehouse.internal/reserve-sku',
+          method: 'POST'
+        }
+      },
+      {
+        id: 'matrix-4-risk-gate',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 1040, y: 220 },
+        data: {
+          label: 'Multi-Branch Risk & Tax Gate',
+          transformType: 'aggregate'
+        }
+      },
+      {
+        id: 'matrix-5-payment',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 1360, y: 340 },
+        data: {
+          label: 'Stripe Settlement & Escrow Capture',
+          url: 'https://jsonplaceholder.typicode.com/posts',
+          method: 'POST'
+        }
+      },
+      {
+        id: 'matrix-6-invoice',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 1680, y: 200 },
+        data: {
+          label: 'Cryptographic Invoice Signer',
+          transformType: 'custom',
+          expression: 'SHA-256 digital signature & tax receipt generator'
+        }
+      },
+      {
+        id: 'matrix-6-logistics-delay',
+        type: NodeTypes.DELAY_TIMER,
+        position: { x: 1680, y: 480 },
+        data: {
+          label: 'Fulfillment Dispatch Debounce',
+          delayMs: 800
+        }
+      },
+      {
+        id: 'matrix-7-warehouse',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 2000, y: 480 },
+        data: {
+          label: 'FedEx / DHL Automated Waybill',
+          url: 'mock://logistics.global/dispatch-label',
+          method: 'POST'
+        }
+      },
+      {
+        id: 'matrix-8-telemetry-sink',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 2320, y: 340 },
+        data: {
+          label: 'Global Settlement & Audit Ledger',
+          transformType: 'aggregate'
+        }
+      }
+    ],
+    edges: [
+      { id: 'e-1-auth', source: 'matrix-1-ingress', target: 'matrix-2-auth', animated: true },
+      { id: 'e-1-norm', source: 'matrix-1-ingress', target: 'matrix-2-normalize', animated: true },
+      { id: 'e-1-deb', source: 'matrix-1-ingress', target: 'matrix-2-debounce', animated: true },
+      { id: 'e-auth-kyc', source: 'matrix-2-auth', target: 'matrix-3-kyc', animated: true },
+      { id: 'e-norm-fraud', source: 'matrix-2-normalize', target: 'matrix-3-fraud', animated: true },
+      { id: 'e-norm-tax', source: 'matrix-2-normalize', target: 'matrix-3-tax', animated: true },
+      { id: 'e-deb-inv', source: 'matrix-2-debounce', target: 'matrix-3-inventory', animated: true },
+      { id: 'e-kyc-gate', source: 'matrix-3-kyc', target: 'matrix-4-risk-gate', animated: true },
+      { id: 'e-fraud-gate', source: 'matrix-3-fraud', target: 'matrix-4-risk-gate', animated: true },
+      { id: 'e-tax-gate', source: 'matrix-3-tax', target: 'matrix-4-risk-gate', animated: true },
+      { id: 'e-gate-pay', source: 'matrix-4-risk-gate', target: 'matrix-5-payment', animated: true },
+      { id: 'e-inv-pay', source: 'matrix-3-inventory', target: 'matrix-5-payment', animated: true },
+      { id: 'e-pay-inv', source: 'matrix-5-payment', target: 'matrix-6-invoice', animated: true },
+      { id: 'e-pay-delay', source: 'matrix-5-payment', target: 'matrix-6-logistics-delay', animated: true },
+      { id: 'e-delay-wh', source: 'matrix-6-logistics-delay', target: 'matrix-7-warehouse', animated: true },
+      { id: 'e-inv-sink', source: 'matrix-6-invoice', target: 'matrix-8-telemetry-sink', animated: true },
+      { id: 'e-wh-sink', source: 'matrix-7-warehouse', target: 'matrix-8-telemetry-sink', animated: true }
+    ]
   }
 ];

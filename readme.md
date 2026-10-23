@@ -4,109 +4,207 @@
 > **Team:** FLCN (Team ID: 272)  
 > **Lead:** Raghav Gupta (20243226 CSE)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/Node.js-18%2B-brightgreen)](https://nodejs.org/)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP%200--9--1-orange)](https://www.rabbitmq.com/)
+[![Redis](https://img.shields.io/badge/Redis-SETNX%20%26%20PubSub-red)](https://redis.io/)
+[![Architecture](https://img.shields.io/badge/Design-Apple--Inspired%20Clean%20UI-black)](https://developer.apple.com/design/)
+
 ---
 
 ## 📖 Executive Summary
-Temporal loops trap mortals in repetitive computational tasks. Existing background scripts lack visual composition, failure resilience, and real-time execution observability. 
+In complex software architectures, asynchronous computations often become chaotic "temporal loops"—unobservable background scripts, cascading microservice failures, and infinite cycle deadlocks (*The Dormammu Loop*).
 
-**ChronosFlow** constructs an extensible, distributed Directed Acyclic Graph (DAG) automation engine where users compose event-driven pipelines, orchestrating asynchronous tasks with deterministic state transitions, scheduled cron triggers, webhook inputs, and distributed worker execution with failure recovery.
+**ChronosFlow** is a distributed, event-driven Directed Acyclic Graph (DAG) orchestration engine. It enables developers and operations teams to visually construct distributed workflows, enforce mathematical acyclicity before task execution, ingest triggers in $<15\text{ms}$ into durable AMQP queues, coordinate distributed worker pools using Kahn's topological sort, and recover self-healing pipelines with exponential backoff and Dead-Letter Queue (DLQ) vaults.
+
+Wrapped in an **Apple-inspired design philosophy**, ChronosFlow combines functional elegance with production-grade distributed systems engineering.
 
 ---
 
-## 🏛️ 4-Tier Core Engineering Architecture
+## 🏛️ 4-Tier Distributed System Architecture
 
-```
-                                +-----------------------------+
-                                |  Tier 1: Client Application |
-                                |  (React Flow + SSE Stream)  |
-                                +--------------+--------------+
-                                               |
-                                     (REST / Webhook / SSE)
-                                               v
-                                +-----------------------------+
-                                | Tier 2: Orchestration GW    |
-                                | (Kahn's Sort & In-Degree)   |
-                                +--------------+--------------+
-                                               |
-                     +-------------------------+-------------------------+
-                     v                                                   v
-        +-------------------------+                         +-------------------------+
-        | Tier 3: RabbitMQ AMQP   |                         | Tier 3: Redis State &   |
-        | (chronos.tasks / DLQ)   |                         | Pub/Sub Telemetry       |
-        +------------+------------+                         +------------+------------+
-                     |                                                   |
-                     +-------------------------+-------------------------+
-                                               |
-                                               v
-                                +-----------------------------+
-                                | Tier 4: Distributed Workers |
-                                | (SETNX Lock + Retry Jitter) |
-                                +-----------------------------+
+```mermaid
+flowchart TD
+    subgraph Tier1["Tier 1: Client Application (Apple-Inspired UI)"]
+        UI["React Flow 12 Canvas<br/>DFS Real-Time Cycle Detection"]
+        Three["Three.js 3D DAG Hero"]
+        Console["SSE Real-Time Console"]
+        Obs["Distributed Observability & DLQ Replay"]
+    end
+
+    subgraph Tier2["Tier 2: Orchestration Gateway (Express / Node.js)"]
+        Ingress["<15ms Webhook Ingress Gateway<br/>/api/webhooks/:webhookId"]
+        Kahn["Kahn's Topological Sorter<br/>Dynamic In-Degree Tracker"]
+        Cron["node-cron Background Scheduler"]
+    end
+
+    subgraph Tier3["Tier 3: Messaging & Distributed State"]
+        RabbitMQ["RabbitMQ AMQP Broker<br/>chronos.tasks | chronos.dlq | DLX"]
+        Redis["Redis Telemetry & Locks<br/>SETNX Idempotency | Pub/Sub SSE"]
+    end
+
+    subgraph Tier4["Tier 4: Distributed Worker Pool"]
+        W1["Worker Process 1<br/>HTTP / Transform / Delay"]
+        W2["Worker Process 2<br/>HTTP / Transform / Delay"]
+        Retry["Exponential Backoff & Jitter<br/>Max 3 Attempts -> Route to DLQ"]
+    end
+
+    UI -->|REST / Webhook Ingest| Ingress
+    Ingress --> Kahn
+    Cron --> Kahn
+    Kahn -->|Dispatch Root Tasks| RabbitMQ
+    RabbitMQ -->|amqplib Prefetch(5)| W1
+    RabbitMQ -->|amqplib Prefetch(5)| W2
+    W1 <-->|SETNX Lock / Heartbeat| Redis
+    W2 <-->|SETNX Lock / Heartbeat| Redis
+    W1 -->|On Failure| Retry
+    Retry -->|Attempt > 3| RabbitMQ
+    W1 -->|On Complete| Kahn
+    W2 -->|On Complete| Kahn
+    Redis -->|Pub/Sub Event Bus| Console
 ```
 
-### 1. Tier 1: Client Application (React Flow)
-- **Visual Canvas:** Built with `@xyflow/react` featuring custom node cards for Triggers, HTTP Requests, Data Transforms, and Delay Timers.
-- **Client-Side DFS Cycle Detector:** Instantly checks graph topology on node connection and blocks invalid closed loop connections (*"Dormammu Loops"*).
-- **Server-Sent Events (SSE):** Real-time event consumption providing live node state transitions, active pulsing glows, and log streaming without polling.
+### 1. Tier 1: Client Application (React & Three.js)
+- **Apple Design Language:** Default light theme with subtle warm grays, SF Pro system typography, restrained corner radii, and high-contrast dark theme toggle.
+- **Three.js Interactive 3D Hero Scene:** Studio-lit, physical materials with photons traveling between 3D nodes (Webhook $\to$ RabbitMQ $\to$ Workers $\to$ Redis $\to$ DLQ).
+- **Client-Side DFS Cycle Detector:** Analyzes topology in real time on edge connection to block invalid cyclic loops (*Dormammu Loops*) before they reach the server.
+- **Real-Time SSE Streaming Console:** Consumes execution events without polling, streaming logs, worker IDs, and durations into a collapsible terminal drawer.
+- **Contextual Node Inspector:** Inspect node configs, test single nodes in isolation, update webhook paths, and view execution outputs.
 
 ### 2. Tier 2: Orchestration API Gateway (Express / Node.js)
-- **Topological Sorting (Kahn's Algorithm):** Computes deterministic execution stages and dependency prerequisites.
-- **Sub-15ms Ingestion:** Incoming triggers are validated and offloaded into RabbitMQ in $< 15\text{ms}$.
-- **Dynamic Dependency Tracker:** Decrements child in-degrees upon parent completion and unlocks downstream nodes only when all inputs are satisfied.
+- **Kahn's Deterministic Topological Sorter:** Computes exact execution stages and topological order $O(V + E)$.
+- **Dynamic In-Degree Dependency Tracker:** As upstream tasks complete, in-degrees of child nodes decrement; nodes unlock and dispatch to RabbitMQ only when all prerequisites reach 0.
+- **Sub-15ms Ingestion:** External webhooks validate and offload into AMQP queues in under 15ms.
 
-### 3. Tier 3: AMQP & Telemetry Layer (RabbitMQ & Redis)
-- **RabbitMQ (`amqplib`):** Message durability, backpressure prefetching (`prefetch(5)`), explicit `ACK`/`NACK` handling, and Dead-Letter Exchange (`chronos.dlx`).
-- **Redis (`ioredis`):** Atomic idempotency locks via `SETNX`, worker heartbeats, and Pub/Sub channel dispatching for live SSE logs.
-- **Zero-Dependency Fallback:** Automatically runs with external RabbitMQ/Redis or transparently engages an in-memory embedded broker for zero-config evaluation.
+### 3. Tier 3: Messaging & Telemetry Layer (RabbitMQ & Redis)
+- **RabbitMQ AMQP 0-9-1 (`amqplib`):** Message durability, `prefetch(5)` backpressure limits, explicit acknowledgments (`ACK`/`NACK`), and Dead-Letter Exchange (`chronos.dlx`).
+- **Redis (`ioredis`):** Atomic distributed locks via `SETNX` to prevent double-execution, 5-second worker heartbeats, and Pub/Sub broadcasting for real-time SSE telemetry.
+- **Zero-Dependency Fallback:** Automatically runs against live external RabbitMQ/Redis or transparently activates an embedded in-memory broker if Docker services are offline.
 
 ### 4. Tier 4: Distributed Worker Pool
-- **Isolated Workers:** Decoupled processes pulling tasks from RabbitMQ.
+- **Isolated Workers:** Autonomous background processes pulling tasks from `chronos.tasks`.
 - **Fault-Tolerant Retry Protocol:** Exponential backoff with full random jitter:
-  $$\text{Delay} = \min(\text{MaxDelay}, \text{BaseDelay} \times 2^{\text{attempt}-1}) + \text{jitter}$$
-- **Dead-Letter Queue (DLQ):** Quarantines unrecoverable tasks after 3 attempts, preventing catastrophic pipeline halts.
+  $$\text{Delay} = \min\left(\text{MaxDelay}, \text{BaseDelay} \times 2^{\text{attempt}-1}\right) + \text{jitter}$$
+- **Dead-Letter Queue (DLQ):** Safely isolates tasks that fail 3 consecutive attempts without halting downstream healthy nodes.
+- **1-Click DLQ Replay:** Observability dashboard allows re-enqueueing dead-lettered tasks back into RabbitMQ.
 
 ---
 
-## 🚀 Quick Start & How to Run
+## 🧮 Mathematical Foundations & Algorithms
 
-### Option A: Instant Run (Zero Configuration Required)
-ChronosFlow includes a built-in development mode that runs immediately with zero external dependencies:
+### 1. Kahn's Topological Sorting ($O(V + E)$)
+Used by the Orchestration Gateway to partition DAG nodes into parallel execution stages:
+```
+1. Compute in-degree (number of incoming directed edges) for every node.
+2. Initialize Queue Q with all nodes having in-degree == 0 (Root Nodes).
+3. While Q is not empty:
+     a. Dequeue node U, append to Topological Order.
+     b. For each downstream neighbor V of U:
+          - Decrement in-degree(V).
+          - If in-degree(V) == 0, enqueue V into next stage.
+4. If topological order length != total nodes, a cycle exists.
+```
+
+### 2. Depth-First Search Cycle Detection ($O(V + E)$)
+Used in the UI to prevent closed loop creation in real time:
+- When a user draws an edge from `Source` to `Target`, DFS checks if `Source` is already reachable from `Target`.
+- If reachable, the edge is rejected and an alert toast is displayed: *"Dormammu Loop Detected: Cycle path Target $\to \dots \to$ Source."*
+
+### 3. Exponential Backoff with Full Random Jitter
+Prevents the **Thundering Herd** problem when an upstream microservice fails:
+```javascript
+const exponentialDelay = Math.min(maxDelayMs, baseDelayMs * Math.pow(2, attempt - 1));
+const jitter = Math.floor(Math.random() * (exponentialDelay * 0.5));
+const totalDelay = exponentialDelay + jitter;
+```
+
+---
+
+## 🎯 5 Built-in Production Presets
+
+| # | Preset Name | Nodes | Stages | Description |
+| :-: | :--- | :-: | :-: | :--- |
+| **01** | **The Dormammu Loop Breaker** | 4 | 4 | Core event pipeline: Webhook Ingress $\to$ 1.5s Debounce $\to$ Payload Normalizer $\to$ Payment Gateway HTTP. |
+| **02** | **Fault-Tolerant Backoff & DLQ Demo** | 3 | 3 | Simulates an unstable HTTP service (503 Gateway). Demonstrates 3 retries with jitter before quarantining into the DLQ Vault. |
+| **03** | **Diamond DAG Concurrency** | 4 | 3 | Asynchronous parallel execution: 1 Trigger splits into 2 concurrent branches running simultaneously and joining at an Aggregate node. |
+| **04** | **Cron Scheduler & Health Sentinel** | 3 | 3 | Autonomous cron-driven pipeline firing every 20s (`*/20 * * * * *`), probing sentinel endpoints and updating metrics. |
+| **05** | **Global Fintech & Order Clearing Matrix** | **14** | **8** | **Ultra-complex enterprise DAG**: Webhook Ingress $\to$ 3-Way Fan-out (Auth, Cart Normalization, Debounce) $\to$ 4 Concurrent Services (AML/KYC, Neural Risk Classifier, Avalara Tax, SKU Reservation) $\to$ 3-Parent Risk Join $\to$ Stripe Escrow Payment $\to$ Dual Post-Payment Fan-out (Crypto Invoice Signer + Logistics Queue Debounce) $\to$ FedEx/DHL Waybill Dispatch $\to$ Telemetry Audit Ledger Join. |
+
+---
+
+## 🛠️ REST API & Webhook Gateway Reference
+
+### Ingress & Webhook Endpoints
+- `POST /api/webhooks/:webhookId`  
+  Ingests arbitrary JSON payloads in $<15\text{ms}$. Matches against workflow nodes where `webhookPath == webhookId`.
+  ```bash
+  curl -X POST http://localhost:5000/api/webhooks/checkout-stream \
+    -H "Content-Type: application/json" \
+    -d '{"orderId":"ORD-9999","amount":15000,"currency":"USD"}'
+  ```
+
+### Workflow & Execution Endpoints
+- `GET /api/presets` — Returns all default presets plus custom user-created presets.
+- `POST /api/presets` — Persists a new custom preset (Current Canvas or Starter).
+- `DELETE /api/presets/:id` — Deletes a user custom preset from Redis and in-memory storage.
+- `POST /api/workflows/:id/run` — Executes a workflow and returns Kahn's execution stages.
+- `GET /api/executions/:id/stream` — Real-Time Server-Sent Events (SSE) log & status stream.
+- `POST /api/workflows/validate` — Validates topology, checks for cycles, and returns stages.
+
+### Observability & DLQ Endpoints
+- `GET /api/health` — Returns system status, worker counts, and broker mode.
+- `GET /api/dlq` — Fetches dead-lettered task records quarantined in the DLQ Vault.
+- `POST /api/dlq/:id/replay` — Re-enqueues a dead-lettered task back into RabbitMQ.
+- `GET /api/cron/jobs` — Lists active background cron schedules and registered triggers.
+
+---
+
+## 🚀 Quick Start Guide
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) v18+ installed.
+- (Optional) [Docker Desktop](https://www.docker.com/) for external RabbitMQ and Redis.
+
+### Option 1: Instant Zero-Config Run (Embedded Broker)
+ChronosFlow includes a self-contained embedded broker that runs out-of-the-box without requiring external Docker services:
 
 ```bash
 # 1. Install root dependencies
 npm install
 
-# 2. Build the visual frontend
-npm run build:client
+# 2. Build the client application
+npm --prefix client run build
 
 # 3. Launch the API Gateway & Worker Engine
-npm run start:server
+node server/src/index.js
 ```
 Open **[http://localhost:5000](http://localhost:5000)** in your browser!
 
 ---
 
-### Option B: Production Mode with Docker (RabbitMQ & Redis)
-To spin up real RabbitMQ (with management dashboard) and Redis:
+### Option 2: Production Run with Live RabbitMQ & Redis
+To run with live enterprise AMQP queues and Redis persistence:
 
 ```bash
-# Start RabbitMQ & Redis containers
+# 1. Start RabbitMQ (with Web Management) and Redis containers
 docker compose up -d
 
-# Start the ChronosFlow backend & worker
-npm run start:server
+# 2. Build and launch ChronosFlow
+npm --prefix client run build
+node server/src/index.js
 ```
-- **Web App:** [http://localhost:5000](http://localhost:5000)
-- **RabbitMQ Management Dashboard:** [http://localhost:15672](http://localhost:15672) (User: `guest`, Pass: `guest`)
-- **Redis:** `localhost:6379`
+
+- **ChronosFlow Web App:** [http://localhost:5000](http://localhost:5000)
+- **RabbitMQ Management Dashboard:** [http://localhost:15672](http://localhost:15672) (User: `guest`, Password: `guest`)
+- **Redis Server:** `localhost:6379`
 
 ---
 
-## 🧪 Verification & Algorithmic Tests
-Run the standalone algorithmic test suite verifying Kahn's Algorithm, DFS Cycle Detection, and Exponential Backoff with Jitter:
+## 🧪 Algorithmic Verification Suite
+Run the mathematical test suite verifying Kahn's Algorithm, DFS Cycle Detection, and Exponential Backoff with Jitter:
 
 ```bash
-npm run test:algo
+node shared/algorithms.test.js
 ```
 
 Output:
@@ -123,9 +221,8 @@ Output:
 
 ---
 
-## 🎯 Built-in Demonstration Presets
-
-In the UI top bar, select any of the 3 presets:
-1. **01: The Dormammu Loop Breaker (Core Pipeline):** Webhook Trigger $\to$ Debounce Delay (1.5s) $\to$ JSON Normalizer $\to$ Payment Gateway HTTP.
-2. **02: Fault-Tolerant Exponential Backoff & DLQ Demo:** Simulates an unstable HTTP microservice returning 503s. Shows real-time retries with jitter, followed by isolation into the Dead-Letter Queue.
-3. **03: Diamond DAG High-Concurrency Execution:** 1 Trigger splits into 2 concurrent parallel branches that run simultaneously and join at an Aggregate node.
+## 👥 Hackathon Credentials
+- **Competition:** CodeSangam 2026 // MNNIT Allahabad
+- **Problem Statement:** PS-04: The Dormammu Loop — Distributed DAG Workflow & Automation Engine
+- **Team:** FLCN (Team ID: 272)
+- **Lead Developer:** Raghav Gupta (20243226 CSE)
