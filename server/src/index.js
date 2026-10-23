@@ -7,6 +7,8 @@ import { coordinator } from './engine/coordinator.js';
 import { detectCycleDFS, computeKahnTopologicalSort } from '../../shared/algorithms.js';
 import { presetWorkflows } from './presets.js';
 import { startWorker } from '../../worker/src/index.js';
+import { cronScheduler } from './engine/cronScheduler.js';
+import { Workflow } from './models/Workflow.js';
 
 const app = express();
 app.use(cors());
@@ -238,7 +240,7 @@ app.get('/api/executions/:id', async (req, res) => {
 // 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & RETRY
 // ==========================================
 // ==========================================
-// 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & RETRY
+// 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & REPLAY
 // ==========================================
 app.get('/api/dlq', (req, res) => {
   const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
@@ -256,6 +258,47 @@ app.get('/api/dlq', (req, res) => {
     }
   });
   res.json(formatted);
+});
+
+// Replay / Retry a Dead-Letter Queue Task
+app.post('/api/dlq/:id/replay', async (req, res) => {
+  const { id } = req.params;
+  const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
+  const idx = parseInt(id.replace('dlq-', ''), 10);
+
+  if (isNaN(idx) || !items[idx]) {
+    return res.status(404).json({ error: 'DLQ item not found' });
+  }
+
+  const item = items.splice(idx, 1)[0];
+  const task = JSON.parse(item.content.toString());
+
+  // Reset attempt counter & re-enqueue into main queue
+  task.attempt = 1;
+  delete task.lastError;
+  await broker.sendTask(task);
+
+  console.log(`♻️ [DLQ Replay] Task ${task.nodeId} replayed into main queue '${config.queueName}'`);
+  res.json({ success: true, message: `Task ${task.nodeId} re-enqueued for execution`, task });
+});
+
+// ==========================================
+// 6. CRON SCHEDULER CONTROLS
+// ==========================================
+app.get('/api/cron/schedules', (req, res) => {
+  res.json(cronScheduler.getActiveSchedules());
+});
+
+app.post('/api/cron/:id/start', (req, res) => {
+  const workflow = workflows.get(req.params.id);
+  if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
+  cronScheduler.registerWorkflow(workflow);
+  res.json({ success: true, message: `Cron schedule started for '${workflow.name}'` });
+});
+
+app.post('/api/cron/:id/stop', (req, res) => {
+  cronScheduler.unregisterWorkflow(req.params.id);
+  res.json({ success: true, message: `Cron schedule stopped for ${req.params.id}` });
 });
 
 import path from 'path';
@@ -283,6 +326,13 @@ async function bootstrap() {
 
   // Start worker listener in same runtime for effortless development / hackathon evaluation
   await startWorker();
+
+  // Register any preset cron workflows
+  for (const wf of workflows.values()) {
+    if (wf.nodes.some(n => n.type === 'cronTrigger')) {
+      cronScheduler.registerWorkflow(wf);
+    }
+  }
 
   app.listen(config.port, () => {
     console.log(`\n==========================================================`);

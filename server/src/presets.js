@@ -144,5 +144,46 @@ export const presetWorkflows = [
       { id: 'ed-2-4', source: 'dia-2', target: 'dia-4', animated: true },
       { id: 'ed-3-4', source: 'dia-3', target: 'dia-4', animated: true }
     ]
+  },
+  {
+    id: 'cron-heartbeat',
+    name: '04: Automated Cron Scheduler & Health Sentinel',
+    description: 'Demonstrates background automated runs: fires automatically every 20 seconds, probes API status, normalizes metrics, and logs execution telemetry.',
+    nodes: [
+      {
+        id: 'cron-1',
+        type: NodeTypes.CRON_TRIGGER,
+        position: { x: 100, y: 180 },
+        data: {
+          label: 'Cron Scheduler',
+          cronExpression: '*/20 * * * * *',
+          eventType: 'system.heartbeat'
+        }
+      },
+      {
+        id: 'cron-2',
+        type: NodeTypes.HTTP_REQUEST,
+        position: { x: 420, y: 180 },
+        data: {
+          label: 'Health Check Probe',
+          url: 'mock://sentinel-service/health',
+          method: 'GET'
+        }
+      },
+      {
+        id: 'cron-3',
+        type: NodeTypes.DATA_TRANSFORM,
+        position: { x: 740, y: 180 },
+        data: {
+          label: 'Format Telemetry Payload',
+          transformType: 'custom',
+          expression: 'Append uptime & resource metrics'
+        }
+      }
+    ],
+    edges: [
+      { id: 'ec-1-2', source: 'cron-1', target: 'cron-2', animated: true },
+      { id: 'ec-2-3', source: 'cron-2', target: 'cron-3', animated: true }
+    ]
   }
 ];

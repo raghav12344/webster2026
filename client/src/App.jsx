@@ -10,25 +10,26 @@ import {
 } from '@xyflow/react';
 import {
   Play,
-  Zap,
   RotateCcw,
   ShieldAlert,
   Terminal,
   Activity,
-  CheckCircle2,
-  AlertTriangle,
   Radio,
-  Layers,
   Skull,
-  ExternalLink,
-  ChevronUp,
-  ChevronDown
+  Download,
+  Upload,
+  RefreshCw,
+  Plus
 } from 'lucide-react';
 
 import TriggerNode from './components/nodes/TriggerNode';
 import HttpNode from './components/nodes/HttpNode';
 import TransformNode from './components/nodes/TransformNode';
 import DelayNode from './components/nodes/DelayNode';
+
+import NodeInspector from './components/NodeInspector';
+import WebhookModal from './components/WebhookModal';
+import AddNodePalette from './components/AddNodePalette';
 
 import { wouldEdgeCreateCycle, detectCycleDFS, computeKahnTopologicalSort } from '../../shared/algorithms.js';
 
@@ -50,14 +51,16 @@ export default function App() {
   const [systemHealth, setSystemHealth] = useState(null);
 
   const [activeExecutionId, setActiveExecutionId] = useState(null);
-  const [executionState, setExecutionState] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [cycleAlert, setCycleAlert] = useState(null);
 
-  const [logs, setLogs] = useState([]);
-  const [showTerminal, setShowTerminal] = useState(true);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [showDLQModal, setShowDLQModal] = useState(false);
   const [dlqItems, setDlqItems] = useState([]);
+
+  const [logs, setLogs] = useState([]);
+  const [showTerminal, setShowTerminal] = useState(true);
 
   const sseRef = useRef(null);
   const logsEndRef = useRef(null);
@@ -69,7 +72,7 @@ export default function App() {
     }
   }, [logs, showTerminal]);
 
-  // Fetch presets and system health on mount
+  // Initial load
   useEffect(() => {
     fetch('/api/health')
       .then(r => r.json())
@@ -93,14 +96,13 @@ export default function App() {
 
   const loadWorkflow = (wf) => {
     setSelectedPresetId(wf.id);
-    // Reset statuses to IDLE
+    setSelectedNode(null);
     const resetNodes = wf.nodes.map(n => ({
       ...n,
       data: { ...n.data, status: 'IDLE', error: null, output: null }
     }));
     setNodes(resetNodes);
     setEdges(wf.edges);
-    setExecutionState(null);
     setActiveExecutionId(null);
     setLogs([
       `[${new Date().toLocaleTimeString()}] Loaded workflow: "${wf.name}"`,
@@ -108,23 +110,67 @@ export default function App() {
     ]);
   };
 
+  // Node selection for inspector
+  const onNodeClick = useCallback((event, node) => {
+    setSelectedNode(node);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
+
+  // Update node data from inspector
+  const handleUpdateNode = (nodeId, newData) => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === nodeId) {
+          const updated = { ...n, data: newData };
+          setSelectedNode(updated);
+          return updated;
+        }
+        return n;
+      })
+    );
+  };
+
+  // Delete node
+  const handleDeleteNode = (nodeId) => {
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+    setSelectedNode(null);
+    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Deleted node: ${nodeId}`]);
+  };
+
+  // Add new node from palette
+  const handleAddNode = (type, defaultData) => {
+    const id = `node_${Date.now().toString(36).substring(4)}`;
+    const newNode = {
+      id,
+      type,
+      position: { x: 250 + Math.random() * 200, y: 150 + Math.random() * 150 },
+      data: { ...defaultData, status: 'IDLE' }
+    };
+    setNodes((nds) => [...nds, newNode]);
+    setSelectedNode(newNode);
+    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Created new ${type} node (${id})`]);
+  };
+
   // Client-Side DFS Real-time Cycle Detection on Edge Connect!
   const onConnect = useCallback(
     (params) => {
-      // Run DFS Cycle Prevention
       const cycleCheck = wouldEdgeCreateCycle(params.source, params.target, edges);
 
       if (cycleCheck.wouldCreateCycle) {
         const cycleStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
-        setCycleAlert(`⛔ Dormammu Cycle Blocked! Connecting ${params.source} to ${params.target} creates a loop (${cycleStr}). A DAG must remain acyclic.`);
+        setCycleAlert(`⛔ Dormammu Cycle Blocked! Connecting ${params.source} to ${params.target} creates a loop (${cycleStr}). A DAG must remain strictly acyclic.`);
         setTimeout(() => setCycleAlert(null), 6000);
-        return; // Reject connection!
+        return; // Block connection
       }
 
       setEdges((eds) => addEdge({ ...params, animated: true }, eds));
       setLogs((prev) => [
         ...prev,
-        `[${new Date().toLocaleTimeString()}] Edge connected: ${params.source} → ${params.target} (DFS Validated)`
+        `[${new Date().toLocaleTimeString()}] Edge created: ${params.source} → ${params.target} (DFS Validated)`
       ]);
     },
     [edges, setEdges]
@@ -136,7 +182,7 @@ export default function App() {
       setIsRunning(true);
       setCycleAlert(null);
 
-      // Validate topology before sending
+      // Validate topology
       const cycleCheck = detectCycleDFS(nodes, edges);
       if (cycleCheck.hasCycle) {
         setCycleAlert(`Cannot execute: Graph contains a cycle (${cycleCheck.cycleNodes.join(' → ')}).`);
@@ -186,31 +232,6 @@ export default function App() {
     }
   };
 
-  // Simulate External Webhook Trigger
-  const triggerWebhook = async () => {
-    try {
-      setIsRunning(true);
-      const res = await fetch('/api/webhooks/order-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: `ORD-${Math.floor(Math.random() * 90000 + 10000)}`,
-          customer: 'Doctor Strange',
-          items: [{ sku: 'AGAMOTTO_EYE', qty: 1, price: 999.0 }],
-          currency: 'USD'
-        })
-      });
-      const data = await res.json();
-      if (data.executionId) {
-        setActiveExecutionId(data.executionId);
-        listenToSSEStream(data.executionId);
-      }
-    } catch (err) {
-      setCycleAlert(`Webhook trigger failed: ${err.message}`);
-      setIsRunning(false);
-    }
-  };
-
   // Real-Time Server-Sent Events (SSE) Listener
   const listenToSSEStream = (execId) => {
     if (sseRef.current) sseRef.current.close();
@@ -223,20 +244,19 @@ export default function App() {
         const payload = JSON.parse(event.data);
 
         if (payload.type === 'INITIAL_STATE') {
-          setExecutionState(payload.execution);
+          // Received snapshot
         } else if (payload.type === 'EXECUTION_STARTED') {
           setLogs((prev) => [
             ...prev,
-            `[${new Date().toLocaleTimeString()}] Pipeline started. RabbitMQ absorbed root tasks.`
+            `[${new Date().toLocaleTimeString()}] Pipeline started. Root tasks enqueued into RabbitMQ.`
           ]);
         } else if (payload.type === 'NODE_STATUS_CHANGE') {
           const { nodeId, status, message, error, logs: nodeLogs } = payload;
 
-          // Update node state in React Flow canvas
           setNodes((nds) =>
             nds.map((n) => {
               if (n.id === nodeId) {
-                return {
+                const updated = {
                   ...n,
                   data: {
                     ...n.data,
@@ -245,6 +265,10 @@ export default function App() {
                     output: payload.output || n.data.output
                   }
                 };
+                if (selectedNode && selectedNode.id === nodeId) {
+                  setSelectedNode(updated);
+                }
+                return updated;
               }
               return n;
             })
@@ -279,7 +303,7 @@ export default function App() {
     };
   };
 
-  // Dead-Letter Queue inspector
+  // DLQ inspector & replay
   const openDLQ = async () => {
     try {
       const res = await fetch('/api/dlq');
@@ -291,14 +315,38 @@ export default function App() {
     }
   };
 
+  const replayDLQTask = async (dlqId) => {
+    try {
+      const res = await fetch(`/api/dlq/${dlqId}/replay`, { method: 'POST' });
+      const data = await res.json();
+      setLogs((prev) => [
+        ...prev,
+        `♻️ [DLQ Replay] Task ${data.task?.nodeId} replayed into RabbitMQ queue!`
+      ]);
+      // Refresh DLQ
+      openDLQ();
+    } catch (err) {
+      alert(`Replay failed: ${err.message}`);
+    }
+  };
+
+  // Export / Import Workflow JSON
+  const exportWorkflowJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ id: selectedPresetId, nodes, edges }, null, 2));
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr);
+    dl.setAttribute("download", `chronosflow-${selectedPresetId}.json`);
+    dl.click();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0e17' }}>
       {/* Top Header Bar */}
       <header className="header-glass">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
-            width: '36px',
-            height: '36px',
+            width: '38px',
+            height: '38px',
             borderRadius: '10px',
             background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)',
             display: 'flex',
@@ -306,7 +354,7 @@ export default function App() {
             justifyContent: 'center',
             boxShadow: '0 0 15px rgba(6, 182, 212, 0.5)'
           }}>
-            <RotateCcw size={20} color="#fff" />
+            <RotateCcw size={22} color="#fff" />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -352,7 +400,7 @@ export default function App() {
         </div>
 
         {/* Right Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             className="btn-primary"
             onClick={triggerRun}
@@ -363,14 +411,18 @@ export default function App() {
             {isRunning ? 'Executing DAG...' : 'Run Pipeline'}
           </button>
 
-          <button className="btn-secondary" onClick={triggerWebhook} disabled={isRunning} title="Simulate external HTTP webhook payload">
+          <button className="btn-secondary" onClick={() => setShowWebhookModal(true)}>
             <Radio size={14} color="#06b6d4" />
-            Trigger Webhook
+            Webhook Gateway
           </button>
 
-          <button className="btn-secondary" onClick={openDLQ} title="Inspect Dead-Letter Queue">
+          <button className="btn-secondary" onClick={openDLQ}>
             <Skull size={14} color="#f43f5e" />
             DLQ Inspector
+          </button>
+
+          <button className="btn-secondary" onClick={exportWorkflowJSON} title="Export Workflow JSON">
+            <Download size={14} />
           </button>
 
           <button className="btn-secondary" onClick={() => setShowTerminal(!showTerminal)}>
@@ -407,6 +459,8 @@ export default function App() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           nodeTypes={nodeTypes}
           fitView
           attributionPosition="bottom-left"
@@ -430,7 +484,7 @@ export default function App() {
           position: 'absolute',
           top: '16px',
           left: '16px',
-          background: 'rgba(15, 23, 42, 0.85)',
+          background: 'rgba(15, 23, 42, 0.9)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: '8px',
@@ -448,9 +502,20 @@ export default function App() {
             Broker: <span style={{ color: '#34d399' }}>{systemHealth?.broker?.mode || 'AMQP Ready'}</span>
           </div>
           <div style={{ color: '#94a3b8' }}>
-            Task Queue: <code>chronos.tasks</code> | DLQ: <code>chronos.dlq</code>
+            Queue: <code>chronos.tasks</code> | DLQ: <code>chronos.dlq</code>
           </div>
         </div>
+
+        {/* Add Node Palette Bar */}
+        <AddNodePalette onAddNode={handleAddNode} />
+
+        {/* Node Configuration Inspector Drawer */}
+        <NodeInspector
+          selectedNode={selectedNode}
+          onUpdateNode={handleUpdateNode}
+          onDeleteNode={handleDeleteNode}
+          onClose={() => setSelectedNode(null)}
+        />
       </div>
 
       {/* Slide-Up Streaming Logs Terminal */}
@@ -487,7 +552,7 @@ export default function App() {
           <div className="terminal-window" style={{ flex: 1 }}>
             {logs.length === 0 ? (
               <div style={{ color: '#475569', fontStyle: 'italic' }}>
-                Waiting for pipeline execution... Click "Run Pipeline" or "Trigger Webhook".
+                Waiting for pipeline execution... Click "Run Pipeline" or "Webhook Gateway".
               </div>
             ) : (
               logs.map((log, index) => (
@@ -501,6 +566,16 @@ export default function App() {
         </div>
       )}
 
+      {/* Webhook Modal */}
+      <WebhookModal
+        isOpen={showWebhookModal}
+        onClose={() => setShowWebhookModal(false)}
+        onTriggered={(execId) => {
+          setActiveExecutionId(execId);
+          listenToSSEStream(execId);
+        }}
+      />
+
       {/* Dead-Letter Queue (DLQ) Inspector Modal */}
       {showDLQModal && (
         <div style={{
@@ -510,7 +585,7 @@ export default function App() {
           right: 0,
           bottom: 0,
           background: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(6px)',
+          backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -519,13 +594,14 @@ export default function App() {
           <div style={{
             background: '#0f172a',
             border: '1px solid rgba(244, 63, 94, 0.4)',
-            borderRadius: '12px',
-            width: '650px',
+            borderRadius: '14px',
+            width: '680px',
+            maxWidth: '92vw',
             maxHeight: '80vh',
             display: 'flex',
             flexDirection: 'column',
             padding: '24px',
-            boxShadow: '0 20px 50px rgba(0,0,0,0.8)'
+            boxShadow: '0 25px 60px rgba(0,0,0,0.85)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -556,16 +632,36 @@ export default function App() {
                     background: '#1e293b',
                     border: '1px solid rgba(255,255,255,0.08)',
                     borderRadius: '8px',
-                    padding: '12px',
+                    padding: '14px',
                     marginBottom: '10px'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                       <span style={{ fontWeight: 600, color: '#f43f5e', fontSize: '13px' }}>
                         Node: {item.task?.nodeId} ({item.task?.nodeType})
                       </span>
-                      <span style={{ fontSize: '11px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                        Attempts: {item.task?.attempt || 3}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                          Attempts: {item.task?.attempt || 3}
+                        </span>
+                        <button
+                          onClick={() => replayDLQTask(item.id)}
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.2)',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            color: '#34d399',
+                            borderRadius: '4px',
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <RefreshCw size={11} /> Replay
+                        </button>
+                      </div>
                     </div>
                     <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '4px' }}>
                       Reason: {item.reason}
