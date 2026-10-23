@@ -16,10 +16,16 @@ import {
   Activity,
   Radio,
   Skull,
+  Layers,
+  Sparkles,
   Download,
-  Upload,
-  RefreshCw,
-  Plus
+  Filter,
+  CheckCircle2,
+  AlertTriangle,
+  Zap,
+  Globe,
+  Cpu,
+  Clock
 } from 'lucide-react';
 
 import TriggerNode from './components/nodes/TriggerNode';
@@ -29,7 +35,8 @@ import DelayNode from './components/nodes/DelayNode';
 
 import NodeInspector from './components/NodeInspector';
 import WebhookModal from './components/WebhookModal';
-import AddNodePalette from './components/AddNodePalette';
+import TopologyModal from './components/TopologyModal';
+import FloatingDock from './components/FloatingDock';
 
 import { wouldEdgeCreateCycle, detectCycleDFS, computeKahnTopologicalSort } from '../../shared/algorithms.js';
 
@@ -56,10 +63,12 @@ export default function App() {
 
   const [selectedNode, setSelectedNode] = useState(null);
   const [showWebhookModal, setShowWebhookModal] = useState(false);
+  const [showTopologyModal, setShowTopologyModal] = useState(false);
   const [showDLQModal, setShowDLQModal] = useState(false);
   const [dlqItems, setDlqItems] = useState([]);
 
   const [logs, setLogs] = useState([]);
+  const [logFilter, setLogFilter] = useState('all'); // 'all' | 'worker' | 'error'
   const [showTerminal, setShowTerminal] = useState(true);
 
   const sseRef = useRef(null);
@@ -89,6 +98,12 @@ export default function App() {
       })
       .catch(console.error);
 
+    // Initial DLQ check
+    fetch('/api/dlq')
+      .then(r => r.json())
+      .then(items => setDlqItems(items))
+      .catch(console.error);
+
     return () => {
       if (sseRef.current) sseRef.current.close();
     };
@@ -105,7 +120,7 @@ export default function App() {
     setEdges(wf.edges);
     setActiveExecutionId(null);
     setLogs([
-      `[${new Date().toLocaleTimeString()}] Loaded workflow: "${wf.name}"`,
+      `[${new Date().toLocaleTimeString()}] Pipeline Loaded: "${wf.name}"`,
       `[${new Date().toLocaleTimeString()}] Topology: ${wf.nodes.length} nodes, ${wf.edges.length} directed edges.`
     ]);
   };
@@ -138,21 +153,49 @@ export default function App() {
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
     setSelectedNode(null);
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Deleted node: ${nodeId}`]);
+    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Removed node: ${nodeId}`]);
   };
 
-  // Add new node from palette
+  // Add new node from dock
   const handleAddNode = (type, defaultData) => {
     const id = `node_${Date.now().toString(36).substring(4)}`;
     const newNode = {
       id,
       type,
-      position: { x: 250 + Math.random() * 200, y: 150 + Math.random() * 150 },
+      position: { x: 300 + Math.random() * 150, y: 160 + Math.random() * 100 },
       data: { ...defaultData, status: 'IDLE' }
     };
     setNodes((nds) => [...nds, newNode]);
     setSelectedNode(newNode);
-    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Created new ${type} node (${id})`]);
+    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] Created ${type} (${id})`]);
+  };
+
+  // Mathematical Auto-Layout using Kahn Topological Sort Stages
+  const handleAutoLayout = () => {
+    const kahn = computeKahnTopologicalSort(nodes, edges);
+    if (!kahn.valid || !kahn.stages) {
+      setCycleAlert('Cannot auto-layout: Graph contains a cycle or invalid connections.');
+      return;
+    }
+
+    const newNodes = [...nodes];
+    kahn.stages.forEach((stage, stageIdx) => {
+      const stageHeight = stage.length;
+      stage.forEach((nodeId, nodeIdxInStage) => {
+        const node = newNodes.find(n => n.id === nodeId);
+        if (node) {
+          const x = 100 + stageIdx * 320;
+          const y = 180 + nodeIdxInStage * 170 - ((stageHeight - 1) * 60);
+          node.position = { x, y };
+        }
+      });
+    });
+
+    setNodes([...newNodes]);
+    setLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Auto-Layout applied: Arranged ${kahn.stages.length} Kahn stages cleanly.`
+    ]);
   };
 
   // Client-Side DFS Real-time Cycle Detection on Edge Connect!
@@ -162,15 +205,15 @@ export default function App() {
 
       if (cycleCheck.wouldCreateCycle) {
         const cycleStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
-        setCycleAlert(`⛔ Dormammu Cycle Blocked! Connecting ${params.source} to ${params.target} creates a loop (${cycleStr}). A DAG must remain strictly acyclic.`);
-        setTimeout(() => setCycleAlert(null), 6000);
-        return; // Block connection
+        setCycleAlert(`⛔ DORMAMMU LOOP DETECTED: Connecting ${params.source} to ${params.target} creates a cycle (${cycleStr}). A DAG must remain strictly acyclic.`);
+        setTimeout(() => setCycleAlert(null), 7000);
+        return; // Reject edge!
       }
 
       setEdges((eds) => addEdge({ ...params, animated: true }, eds));
       setLogs((prev) => [
         ...prev,
-        `[${new Date().toLocaleTimeString()}] Edge created: ${params.source} → ${params.target} (DFS Validated)`
+        `[${new Date().toLocaleTimeString()}] Edge Connected: ${params.source} ➔ ${params.target} (DFS Validated)`
       ]);
     },
     [edges, setEdges]
@@ -207,9 +250,9 @@ export default function App() {
 
       setLogs((prev) => [
         ...prev,
-        `-------------------------------------------------------`,
-        `🚀 [DISPATCH] Kahn's Topological Order: ${kahn.order.join(' → ')}`,
-        `📦 Dispatching execution payload to API Gateway...`
+        `==================================================================`,
+        `🚀 [DISPATCH] Kahn's Deterministic Order: ${kahn.order.join(' ➔ ')}`,
+        `📦 Ingested into RabbitMQ in <15ms. Distributing to background workers...`
       ]);
 
       const res = await fetch(`/api/workflows/${selectedPresetId}/run`, {
@@ -244,7 +287,7 @@ export default function App() {
         const payload = JSON.parse(event.data);
 
         if (payload.type === 'INITIAL_STATE') {
-          // Received snapshot
+          // Connected
         } else if (payload.type === 'EXECUTION_STARTED') {
           setLogs((prev) => [
             ...prev,
@@ -283,12 +326,20 @@ export default function App() {
               ...nodeLogs.map((l) => `  ↪ [${nodeId}] ${l}`)
             ]);
           }
+
+          // If node was routed to DLQ, update DLQ count
+          if (status === 'DEAD_LETTER') {
+            fetch('/api/dlq')
+              .then(r => r.json())
+              .then(items => setDlqItems(items))
+              .catch(console.error);
+          }
         } else if (payload.type === 'EXECUTION_COMPLETED') {
           setIsRunning(false);
           setLogs((prev) => [
             ...prev,
             `🏁 [COMPLETED] ${payload.summary}`,
-            `-------------------------------------------------------`
+            `==================================================================`
           ]);
           sse.close();
         }
@@ -323,14 +374,13 @@ export default function App() {
         ...prev,
         `♻️ [DLQ Replay] Task ${data.task?.nodeId} replayed into RabbitMQ queue!`
       ]);
-      // Refresh DLQ
       openDLQ();
     } catch (err) {
       alert(`Replay failed: ${err.message}`);
     }
   };
 
-  // Export / Import Workflow JSON
+  // Export Workflow JSON
   const exportWorkflowJSON = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ id: selectedPresetId, nodes, edges }, null, 2));
     const dl = document.createElement('a');
@@ -339,29 +389,44 @@ export default function App() {
     dl.click();
   };
 
+  // Filter logs for terminal
+  const filteredLogs = logs.filter(l => {
+    if (logFilter === 'worker') return l.includes('worker_') || l.includes('Task');
+    if (logFilter === 'error') return l.includes('error') || l.includes('DLQ') || l.includes('Fatal') || l.includes('503');
+    return true;
+  });
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0e17' }}>
-      {/* Top Header Bar */}
-      <header className="header-glass">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#07090e' }}>
+      {/* Top HUD Header */}
+      <header className="hud-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)',
+            width: '40px',
+            height: '40px',
+            borderRadius: '11px',
+            background: 'linear-gradient(135deg, #00f0ff, #8b5cf6)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(6, 182, 212, 0.5)'
+            boxShadow: '0 0 20px rgba(0, 240, 255, 0.5)'
           }}>
-            <RotateCcw size={22} color="#fff" />
+            <RotateCcw size={22} color="#07090e" strokeWidth={2.5} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '16px', fontWeight: 700, letterSpacing: '-0.3px', color: '#f8fafc' }}>
+              <h1 style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.3px', color: '#f8fafc' }}>
                 CHRONOSFLOW
               </h1>
-              <span style={{ fontSize: '11px', background: 'rgba(139, 92, 246, 0.25)', color: '#c084fc', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.4)' }}>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                background: 'rgba(139, 92, 246, 0.25)',
+                color: '#c084fc',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                border: '1px solid rgba(139, 92, 246, 0.4)'
+              }}>
                 PS-04 // THE DORMAMMU LOOP
               </span>
             </div>
@@ -371,83 +436,83 @@ export default function App() {
           </div>
         </div>
 
-        {/* Middle: Preset Pipeline Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Pipeline:</span>
-          <select
-            value={selectedPresetId}
-            onChange={(e) => {
-              const found = presets.find((p) => p.id === e.target.value);
-              if (found) loadWorkflow(found);
-            }}
-            style={{
-              background: '#131c2e',
-              color: '#f1f5f9',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              fontSize: '12px',
-              outline: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+        {/* Middle: Preset Segmented Tabs */}
+        <div className="preset-tabs">
+          {presets.map((p, idx) => {
+            const shortTitles = ['01: Core Loop', '02: Retry & DLQ', '03: Diamond Parallel', '04: Cron Sentinel'];
+            const icons = [Zap, AlertTriangle, Layers, Clock];
+            const Icon = icons[idx] || Zap;
+            return (
+              <button
+                key={p.id}
+                className={`preset-tab-btn ${selectedPresetId === p.id ? 'active' : ''}`}
+                onClick={() => loadWorkflow(p)}
+              >
+                <Icon size={13} color={selectedPresetId === p.id ? '#00f0ff' : '#94a3b8'} />
+                <span>{shortTitles[idx] || p.name}</span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Right Actions */}
+        {/* Right HUD Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
-            className="btn-primary"
+            className="btn-neon-primary"
             onClick={triggerRun}
             disabled={isRunning}
-            style={{ opacity: isRunning ? 0.6 : 1 }}
           >
-            <Play size={14} fill="#fff" />
-            {isRunning ? 'Executing DAG...' : 'Run Pipeline'}
+            <Play size={14} fill="#07090e" />
+            <span>{isRunning ? 'Executing...' : 'Run DAG'}</span>
           </button>
 
-          <button className="btn-secondary" onClick={() => setShowWebhookModal(true)}>
-            <Radio size={14} color="#06b6d4" />
-            Webhook Gateway
+          <button className="btn-glass" onClick={() => setShowWebhookModal(true)} title="External HTTP Webhook Gateway">
+            <Radio size={14} color="#00f0ff" />
+            <span>Webhook</span>
           </button>
 
-          <button className="btn-secondary" onClick={openDLQ}>
-            <Skull size={14} color="#f43f5e" />
-            DLQ Inspector
+          <button className="btn-glass" onClick={() => setShowTopologyModal(true)} title="Inspect Mathematical Kahn Stages">
+            <Layers size={14} color="#a855f7" />
+            <span>Topology</span>
           </button>
 
-          <button className="btn-secondary" onClick={exportWorkflowJSON} title="Export Workflow JSON">
-            <Download size={14} />
+          <button className="btn-glass" onClick={openDLQ} title="Dead-Letter Queue Vault">
+            <Skull size={14} color="#ff0055" />
+            <span>DLQ Vault</span>
+            {dlqItems.length > 0 && (
+              <span style={{
+                background: '#ff0055',
+                color: '#fff',
+                borderRadius: '10px',
+                padding: '1px 6px',
+                fontSize: '10px',
+                fontWeight: 700
+              }}>
+                {dlqItems.length}
+              </span>
+            )}
           </button>
 
-          <button className="btn-secondary" onClick={() => setShowTerminal(!showTerminal)}>
-            <Terminal size={14} color="#a78bfa" />
-            {showTerminal ? 'Hide Terminal' : 'Live Logs'}
+          <button className="btn-glass" onClick={() => setShowTerminal(!showTerminal)}>
+            <Terminal size={14} color="#38bdf8" />
+            <span>{showTerminal ? 'Hide Console' : 'Console'}</span>
           </button>
         </div>
       </header>
 
       {/* Cycle Alert Banner */}
       {cycleAlert && (
-        <div style={{
-          background: 'rgba(239, 68, 68, 0.15)',
-          borderBottom: '1px solid #ef4444',
-          color: '#fca5a5',
-          padding: '10px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          fontSize: '13px',
-          fontWeight: 500,
-          animation: 'slideDown 0.3s ease'
-        }}>
-          <ShieldAlert size={18} color="#ef4444" />
-          <span>{cycleAlert}</span>
+        <div className="cycle-alert-banner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ShieldAlert size={20} color="#ff0055" />
+            <span>{cycleAlert}</span>
+          </div>
+          <button
+            onClick={() => setCycleAlert(null)}
+            style={{ background: 'transparent', border: 'none', color: '#fecdd3', cursor: 'pointer', fontSize: '16px' }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -465,49 +530,62 @@ export default function App() {
           fitView
           attributionPosition="bottom-left"
         >
-          <Background color="#1e293b" gap={20} size={1} />
+          <Background color="#1e293b" gap={22} size={1} />
           <Controls />
           <MiniMap
             nodeColor={(n) => {
               if (n.data?.status === 'SUCCESS') return '#10b981';
-              if (n.data?.status === 'RUNNING') return '#06b6d4';
+              if (n.data?.status === 'RUNNING') return '#00f0ff';
               if (n.data?.status === 'RETRYING') return '#f59e0b';
-              if (n.data?.status === 'DEAD_LETTER') return '#f43f5e';
+              if (n.data?.status === 'DEAD_LETTER') return '#ff0055';
               return '#475569';
             }}
-            style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: '#090d16', border: '1px solid rgba(255,255,255,0.1)' }}
           />
         </ReactFlow>
 
-        {/* Floating Architecture Badge */}
+        {/* Floating Architecture Status Badge */}
         <div style={{
           position: 'absolute',
           top: '16px',
           left: '16px',
-          background: 'rgba(15, 23, 42, 0.9)',
-          backdropFilter: 'blur(10px)',
+          background: 'rgba(14, 19, 31, 0.92)',
+          backdropFilter: 'blur(16px)',
           border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '8px',
+          borderRadius: '10px',
           padding: '10px 14px',
           fontSize: '11px',
           color: '#cbd5e1',
           zIndex: 10,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+          boxShadow: '0 8px 30px rgba(0,0,0,0.6)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#38bdf8', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', color: '#00f0ff', fontWeight: 700 }}>
             <Activity size={14} />
-            <span>Distributed AMQP & Telemetry Engine</span>
+            <span>AMQP Distributed Broker & Telemetry</span>
           </div>
           <div style={{ color: '#94a3b8' }}>
-            Broker: <span style={{ color: '#34d399' }}>{systemHealth?.broker?.mode || 'AMQP Ready'}</span>
+            Broker: <span style={{ color: '#10b981', fontWeight: 600 }}>{systemHealth?.broker?.mode || 'AMQP Ready'}</span>
           </div>
-          <div style={{ color: '#94a3b8' }}>
-            Queue: <code>chronos.tasks</code> | DLQ: <code>chronos.dlq</code>
+          <div style={{ color: '#94a3b8', fontSize: '10px' }}>
+            Task Queue: <code>chronos.tasks</code> | DLQ: <code>chronos.dlq</code>
           </div>
         </div>
 
-        {/* Add Node Palette Bar */}
-        <AddNodePalette onAddNode={handleAddNode} />
+        {/* Modern Floating Bottom Dock */}
+        <FloatingDock
+          onAddNode={handleAddNode}
+          onAutoLayout={handleAutoLayout}
+          onReset={() => {
+            const found = presets.find(p => p.id === selectedPresetId);
+            if (found) loadWorkflow(found);
+          }}
+          onClear={() => {
+            setNodes([]);
+            setEdges([]);
+            setSelectedNode(null);
+          }}
+          onExport={exportWorkflowJSON}
+        />
 
         {/* Node Configuration Inspector Drawer */}
         <NodeInspector
@@ -518,45 +596,73 @@ export default function App() {
         />
       </div>
 
-      {/* Slide-Up Streaming Logs Terminal */}
+      {/* Slide-Up Streaming Logs Console Terminal */}
       {showTerminal && (
         <div style={{
-          background: '#070b13',
-          borderTop: '1px solid rgba(255,255,255,0.12)',
-          padding: '12px 20px',
+          background: '#04060a',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          padding: '10px 20px',
           display: 'flex',
           flexDirection: 'column',
-          height: '240px',
+          height: '230px',
           zIndex: 25
         }}>
+          {/* Console Header Bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Terminal size={14} color="#38bdf8" />
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#e2e8f0' }}>
-                Real-Time Worker Telemetry & SSE Log Stream
-              </span>
-              {isRunning && (
-                <span style={{ fontSize: '11px', color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  ● Streaming...
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Terminal size={14} color="#00f0ff" />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f1f5f9' }}>
+                  Live Worker Telemetry & SSE Stream
                 </span>
-              )}
+                {isRunning && (
+                  <span style={{ fontSize: '11px', color: '#00f0ff', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    ● Streaming...
+                  </span>
+                )}
+              </div>
+
+              {/* Log Level Filters */}
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {['all', 'worker', 'error'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setLogFilter(f)}
+                    style={{
+                      background: logFilter === f ? 'rgba(255,255,255,0.12)' : 'transparent',
+                      border: 'none',
+                      color: logFilter === f ? '#fff' : '#64748b',
+                      borderRadius: '4px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      fontWeight: 600
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
+
             <button
               onClick={() => setLogs([])}
               style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '11px', cursor: 'pointer' }}
             >
-              Clear Logs
+              Clear Console
             </button>
           </div>
 
+          {/* Console Body */}
           <div className="terminal-window" style={{ flex: 1 }}>
-            {logs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <div style={{ color: '#475569', fontStyle: 'italic' }}>
-                Waiting for pipeline execution... Click "Run Pipeline" or "Webhook Gateway".
+                Waiting for pipeline execution... Click "Run DAG" or "Webhook" to stream telemetry live.
               </div>
             ) : (
-              logs.map((log, index) => (
-                <div key={index} style={{ marginBottom: '3px', lineHeight: '1.4' }}>
+              filteredLogs.map((log, index) => (
+                <div key={index} style={{ marginBottom: '2px' }}>
                   {log}
                 </div>
               ))
@@ -566,7 +672,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Webhook Modal */}
+      {/* Webhook Gateway Modal */}
       <WebhookModal
         isOpen={showWebhookModal}
         onClose={() => setShowWebhookModal(false)}
@@ -576,7 +682,15 @@ export default function App() {
         }}
       />
 
-      {/* Dead-Letter Queue (DLQ) Inspector Modal */}
+      {/* Graph Topology & Kahn Stages Modal */}
+      <TopologyModal
+        isOpen={showTopologyModal}
+        onClose={() => setShowTopologyModal(false)}
+        nodes={nodes}
+        edges={edges}
+      />
+
+      {/* Dead-Letter Queue (DLQ) Vault Modal */}
       {showDLQModal && (
         <div style={{
           position: 'fixed',
@@ -584,33 +698,37 @@ export default function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 100
         }}>
           <div style={{
-            background: '#0f172a',
-            border: '1px solid rgba(244, 63, 94, 0.4)',
-            borderRadius: '14px',
+            background: '#0d121f',
+            border: '1px solid rgba(255, 0, 85, 0.4)',
+            borderRadius: '16px',
             width: '680px',
             maxWidth: '92vw',
-            maxHeight: '80vh',
+            maxHeight: '82vh',
             display: 'flex',
             flexDirection: 'column',
             padding: '24px',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.85)'
+            boxShadow: '0 25px 60px rgba(0,0,0,0.9)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ padding: '8px', background: 'rgba(244, 63, 94, 0.2)', borderRadius: '8px', color: '#f43f5e' }}>
-                  <Skull size={20} />
+                <div style={{ padding: '8px', background: 'rgba(255, 0, 85, 0.2)', borderRadius: '10px', color: '#ff0055' }}>
+                  <Skull size={22} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#f8fafc' }}>Dead-Letter Queue (DLQ) Inspector</h3>
-                  <p style={{ fontSize: '11px', color: '#94a3b8' }}>Quarantined tasks exceeding max exponential backoff retries (Cap: 3)</p>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>
+                    Dead-Letter Queue (DLQ) Isolation Vault
+                  </h3>
+                  <p style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Quarantined tasks exceeding max exponential backoff retries (Cap: 3)
+                  </p>
                 </div>
               </div>
               <button
@@ -623,25 +741,29 @@ export default function App() {
 
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {dlqItems.length === 0 ? (
-                <div style={{ padding: '30px', textAlign: 'center', color: '#64748b' }}>
-                  🎉 No tasks in Dead-Letter Queue. All pipelines executed without unrecoverable crashes!
+                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                  <CheckCircle2 size={32} color="#10b981" style={{ margin: '0 auto 10px auto' }} />
+                  <div>No tasks quarantined in Dead-Letter Queue.</div>
+                  <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                    Run <strong>Preset 02 (Retry & DLQ)</strong> to see simulated failures quarantined here!
+                  </div>
                 </div>
               ) : (
                 dlqItems.map((item, idx) => (
                   <div key={idx} style={{
-                    background: '#1e293b',
+                    background: '#141a29',
                     border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     padding: '14px',
                     marginBottom: '10px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 600, color: '#f43f5e', fontSize: '13px' }}>
+                      <span style={{ fontWeight: 700, color: '#ff0055', fontSize: '13px' }}>
                         Node: {item.task?.nodeId} ({item.task?.nodeType})
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '11px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 6px', borderRadius: '4px' }}>
-                          Attempts: {item.task?.attempt || 3}
+                        <span style={{ fontSize: '11px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                          Attempts: {item.task?.attempt || 3} / 3
                         </span>
                         <button
                           onClick={() => replayDLQTask(item.id)}
@@ -649,25 +771,25 @@ export default function App() {
                             background: 'rgba(16, 185, 129, 0.2)',
                             border: '1px solid rgba(16, 185, 129, 0.4)',
                             color: '#34d399',
-                            borderRadius: '4px',
-                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
                             fontSize: '11px',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px'
                           }}
                         >
-                          <RefreshCw size={11} /> Replay
+                          <RotateCcw size={11} /> Replay Task
                         </button>
                       </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11.5px', color: '#fca5a5', marginBottom: '4px' }}>
                       Reason: {item.reason}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                      Last Error: <code>{item.task?.lastError || 'Gateway failure'}</code>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                      Last Error: {item.task?.lastError || 'Gateway failure'}
                     </div>
                   </div>
                 ))

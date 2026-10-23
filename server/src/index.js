@@ -242,7 +242,12 @@ app.get('/api/executions/:id', async (req, res) => {
 // ==========================================
 // 5. DEAD-LETTER QUEUE (DLQ) INSPECTION & REPLAY
 // ==========================================
-app.get('/api/dlq', (req, res) => {
+app.get('/api/dlq', async (req, res) => {
+  const registry = (await broker.get('chronos:dlq:registry')) || [];
+  if (registry.length > 0) {
+    return res.json(registry);
+  }
+
   const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
   const formatted = items.map((item, idx) => {
     try {
@@ -263,23 +268,34 @@ app.get('/api/dlq', (req, res) => {
 // Replay / Retry a Dead-Letter Queue Task
 app.post('/api/dlq/:id/replay', async (req, res) => {
   const { id } = req.params;
-  const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
-  const idx = parseInt(id.replace('dlq-', ''), 10);
+  const registry = (await broker.get('chronos:dlq:registry')) || [];
+  const foundIdx = registry.findIndex(item => item.id === id);
 
-  if (isNaN(idx) || !items[idx]) {
+  let taskToReplay = null;
+  if (foundIdx !== -1) {
+    const [removed] = registry.splice(foundIdx, 1);
+    taskToReplay = removed.task;
+    await broker.set('chronos:dlq:registry', registry);
+  } else {
+    const items = broker.isEmbedded ? (broker.inMemory.queues.get(config.dlqName) || []) : dlqItems;
+    const idx = parseInt(id.replace('dlq-', ''), 10);
+    if (!isNaN(idx) && items[idx]) {
+      const item = items.splice(idx, 1)[0];
+      taskToReplay = JSON.parse(item.content.toString());
+    }
+  }
+
+  if (!taskToReplay) {
     return res.status(404).json({ error: 'DLQ item not found' });
   }
 
-  const item = items.splice(idx, 1)[0];
-  const task = JSON.parse(item.content.toString());
-
   // Reset attempt counter & re-enqueue into main queue
-  task.attempt = 1;
-  delete task.lastError;
-  await broker.sendTask(task);
+  taskToReplay.attempt = 1;
+  delete taskToReplay.lastError;
+  await broker.sendTask(taskToReplay);
 
-  console.log(`♻️ [DLQ Replay] Task ${task.nodeId} replayed into main queue '${config.queueName}'`);
-  res.json({ success: true, message: `Task ${task.nodeId} re-enqueued for execution`, task });
+  console.log(`♻️ [DLQ Replay] Task ${taskToReplay.nodeId} replayed into main queue '${config.queueName}'`);
+  res.json({ success: true, message: `Task ${taskToReplay.nodeId} re-enqueued for execution`, task: taskToReplay });
 });
 
 // ==========================================

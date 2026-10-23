@@ -190,6 +190,27 @@ class DAGCoordinator {
     exec.nodeStates[nodeId].completedAt = Date.now();
     exec.status = ExecutionStatus.PARTIALLY_FAILED;
 
+    // Save to DLQ registry
+    const dlqItem = {
+      id: `dlq-${Date.now()}_${nodeId}`,
+      executionId,
+      nodeId,
+      task: {
+        executionId,
+        nodeId,
+        nodeType: exec.nodeStates[nodeId].type,
+        config: exec.nodes.find(n => n.id === nodeId)?.data || {},
+        attempt: 3,
+        lastError: errorMsg
+      },
+      reason: 'Max exponential backoff retries exceeded (Cap: 3)',
+      timestamp: Date.now()
+    };
+
+    const existingDLQ = (await broker.get('chronos:dlq:registry')) || [];
+    existingDLQ.unshift(dlqItem);
+    await broker.set('chronos:dlq:registry', existingDLQ.slice(0, 50));
+
     await this.broadcastEvent(executionId, {
       type: 'NODE_STATUS_CHANGE',
       nodeId,
